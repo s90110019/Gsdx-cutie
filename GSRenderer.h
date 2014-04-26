@@ -44,8 +44,7 @@ protected:
 	int m_aspectratio;
 	int m_filter;
 	int m_skiptex;
-	int m_SkipIso_ztstnum;
-	int m_SkipIso_zwenum;
+	int m_SkipIso_PSM;
 	bool m_vsync;
 	bool m_aa1;
 	bool m_mipmap;
@@ -53,7 +52,8 @@ protected:
 	bool m_shaderfx;
 	bool m_fxaa;
 	bool m_shadeboost;
-	bool m_hotkeycheck;
+	bool UserHacks_Skiptexhotkey;
+	bool UserHacks_PSMhotkey;
 
 	virtual GSTexture* GetOutput(int i) = 0;
 

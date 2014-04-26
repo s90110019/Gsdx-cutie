@@ -37,11 +37,14 @@ GSRendererDX::GSRendererDX(GSTextureCache* tc, const GSVector2& pixelcenter)
 	UserHacks_TCO_x = (UserHacks_TCOffset & 0xFFFF) / -1000.0f;
 	UserHacks_TCO_y = ((UserHacks_TCOffset >> 16) & 0xFFFF) / -1000.0f;
 	UserHacks_SkipPostProcessing = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_SkipPostProcessing", 0) : 0;
-	UserHacks_SkipIso_ztstnum = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_Check_SkipIso_ztstnum", 0): 0;
-	UserHacks_SkipIso_zwenum = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_Check_SkipIso_zwenum", 0): 0;
+	UserHacks_SkipIso_primclass = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_Check_SkipIso_primclass", 0): 0;
+	UserHacks_SkipIso_FBMSK = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_Check_SkipIso_FBMSK", 0): 0;
+	UserHacks_SkipIso_PSM = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_Check_SkipIso_PSM", 0): 0;
+	UserHacks_PSMhotkey = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_PSMhotkey", 0);
 	m_SkipIso = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_SkipIso", 0) : 0;
-	m_SkipIso_ztstnum = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_ztstnum", 0): 0;
-	m_SkipIso_zwenum = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_zwenum", 0): 0;
+	m_SkipIso_primclass = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_primclass", 0): 0;
+	m_SkipIso_FBMSK = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_FBMSK", 0): 0;
+	m_SkipIso_PSM = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_PSM", 0): 0;
 }
 
 GSRendererDX::~GSRendererDX()
@@ -121,44 +124,240 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 
 	if(!IsOpaque())
 	{
+	  if(UserHacks_PSMhotkey)
+	  {
+		m_SkipIso_PSM = theApp.GetConfig("SkipIso_PSM", 0);
+	  }
 	  if(m_SkipIso==1)
 	  {	
-		if(UserHacks_SkipIso_zwenum==true && UserHacks_SkipIso_ztstnum==true)
+		if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==true)
 		{
-			if(tex==0 && om_dssel.zwe ==m_SkipIso_zwenum && om_dssel.ztst ==m_SkipIso_ztstnum) return;
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 1:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFF000000 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 2:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x00FFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 3:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 4:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 5:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			 }
 		}
-		else if(UserHacks_SkipIso_zwenum==false && UserHacks_SkipIso_ztstnum==true)
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==false)
 		{
-			if(tex==0 && om_dssel.ztst ==m_SkipIso_ztstnum) return;
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0) return;
+			  break;
+			case 1:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFF000000) return;
+			  break;
+			case 2:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x00FFFFFF) return;
+			  break;
+			case 3:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFFFFFFFF) return;
+			  break;
+			case 4:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF) return;
+			  break;
+			case 5:
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0) return;
+			  break;
+			 }
 		}
-		else if(UserHacks_SkipIso_zwenum==true && UserHacks_SkipIso_ztstnum==false)
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==true)
 		{
-			if(tex==0 && om_dssel.zwe ==m_SkipIso_zwenum) return;
+			if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 		}
-		else if(UserHacks_SkipIso_zwenum==false && UserHacks_SkipIso_ztstnum==false)
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==true)
+		{
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex==0 && context->FRAME.FBMSK ==0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 1:
+			  if(tex==0 && context->FRAME.FBMSK ==0xFF000000 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 2:
+			  if(tex==0 && context->FRAME.FBMSK ==0x00FFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 3:
+			  if(tex==0 && context->FRAME.FBMSK ==0xFFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 4:
+			  if(tex==0 && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 5:
+			  if(tex==0 && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			 }
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==true)
+		{
+			if(tex==0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==false)
+		{
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex==0 && context->FRAME.FBMSK ==0) return;
+			  break;
+			case 1:
+			  if(tex==0 && context->FRAME.FBMSK ==0xFF000000) return;
+			  break;
+			case 2:
+			  if(tex==0 && context->FRAME.FBMSK ==0x00FFFFFF) return;
+			  break;
+			case 3:
+			  if(tex==0 && context->FRAME.FBMSK ==0xFFFFFFFF) return;
+			  break;
+			case 4:
+			  if(tex==0 && context->FRAME.FBMSK ==0x03FFF) return;
+			  break;
+			case 5:
+			  if(tex==0 && context->FRAME.FBMSK > 0) return;
+			  break;
+			 }
+		}
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==false)
+		{
+			if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass) return;
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==false)
 		{
 			if(tex==0) return;
 		}
 	  }
 	  else if(m_SkipIso==2)
-	  {
-		if(UserHacks_SkipIso_zwenum==true && UserHacks_SkipIso_ztstnum==true)
+	  {	
+		if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==true)
 		{
-			if(tex!=0 && om_dssel.zwe ==m_SkipIso_zwenum && om_dssel.ztst ==m_SkipIso_ztstnum) return;
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 1:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFF000000 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 2:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x00FFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 3:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 4:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 5:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			 }
 		}
-		else if(UserHacks_SkipIso_zwenum==false && UserHacks_SkipIso_ztstnum==true)
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==false)
 		{
-			if(tex!=0 && om_dssel.ztst ==m_SkipIso_ztstnum) return;
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0) return;
+			  break;
+			case 1:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFF000000) return;
+			  break;
+			case 2:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x00FFFFFF) return;
+			  break;
+			case 3:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0xFFFFFFFF) return;
+			  break;
+			case 4:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF) return;
+			  break;
+			case 5:
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0) return;
+			  break;
+			 }
 		}
-		else if(UserHacks_SkipIso_zwenum==true && UserHacks_SkipIso_ztstnum==false)
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==true)
 		{
-			if(tex!=0 && om_dssel.zwe ==m_SkipIso_zwenum) return;
+			if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 		}
-		else if(UserHacks_SkipIso_zwenum==false && UserHacks_SkipIso_ztstnum==false)
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==true)
+		{
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex!=0 && context->FRAME.FBMSK ==0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 1:
+			  if(tex!=0 && context->FRAME.FBMSK ==0xFF000000 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 2:
+			  if(tex!=0 && context->FRAME.FBMSK ==0x00FFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 3:
+			  if(tex!=0 && context->FRAME.FBMSK ==0xFFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 4:
+			  if(tex!=0 && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			case 5:
+			  if(tex!=0 && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  break;
+			 }
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==true)
+		{
+			if(tex!=0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==true &&  UserHacks_SkipIso_PSM==false)
+		{
+			switch(m_SkipIso_FBMSK)
+			{
+			case 0:
+			  if(tex!=0 && context->FRAME.FBMSK ==0) return;
+			  break;
+			case 1:
+			  if(tex!=0 && context->FRAME.FBMSK ==0xFF000000) return;
+			  break;
+			case 2:
+			  if(tex!=0 && context->FRAME.FBMSK ==0x00FFFFFF) return;
+			  break;
+			case 3:
+			  if(tex!=0 && context->FRAME.FBMSK ==0xFFFFFFFF) return;
+			  break;
+			case 4:
+			  if(tex!=0 && context->FRAME.FBMSK ==0x03FFF) return;
+			  break;
+			case 5:
+			  if(tex!=0 && context->FRAME.FBMSK > 0) return;
+			  break;
+			 }
+		}
+		else if(UserHacks_SkipIso_primclass==true && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==false)
+		{
+			if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass) return;
+		}
+		else if(UserHacks_SkipIso_primclass==false && UserHacks_SkipIso_FBMSK==false &&  UserHacks_SkipIso_PSM==false)
 		{
 			if(tex!=0) return;
-		}	
-	  }
+		}
+	}
 		om_bsel.abe = PRIM->ABE || PRIM->AA1 && m_vt.m_primclass == GS_LINE_CLASS;
 
 		om_bsel.a = context->ALPHA.A;

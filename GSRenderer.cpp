@@ -45,7 +45,9 @@ GSRenderer::GSRenderer()
 	m_shaderfx = !!theApp.GetConfig("shaderfx", 0);
 	m_shadeboost = !!theApp.GetConfig("ShadeBoost", 0);
 	m_skiptex = theApp.GetConfig("skiptex", 0);
-	m_hotkeycheck = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_HotkeyCheck", 0);
+	m_SkipIso_PSM = theApp.GetConfig("SkipIso_PSM", 0);
+	UserHacks_Skiptexhotkey = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_Skiptexhotkey", 0);
+	UserHacks_PSMhotkey = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_PSMhotkey", 0);
 }
 
 GSRenderer::~GSRenderer()
@@ -580,11 +582,23 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 			printf("GSdx: FXAA anti-aliasing is now %s.\n", m_fxaa ? "enabled" : "disabled");
 			return;
 		case VK_HOME:
-			if (m_hotkeycheck )
+			if(GetKeyState(VK_SHIFT)&0x8000)
 			{
-			m_skiptex = 0;
-			theApp.SetConfig("skiptex", m_skiptex);
-			printf("Set skiptex to %d \n", m_skiptex);
+				if(UserHacks_PSMhotkey)
+				{
+					m_SkipIso_PSM = 0;
+					theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+					printf("Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+				}
+			}
+			else
+			{
+				if (UserHacks_Skiptexhotkey)
+				{
+					m_skiptex = 0;
+					theApp.SetConfig("skiptex", m_skiptex);
+					printf("Set skiptex to %d \n", m_skiptex);
+				}
 			}
 			return;
 		case VK_BACK:
@@ -592,36 +606,78 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 			printf("GSdx: External post-processing is now %s.\n", m_shaderfx ? "enabled" : "disabled");
 			return;
 		case VK_PRIOR:
-			if (m_hotkeycheck )
+			if(GetKeyState(VK_SHIFT)&0x8000)
 			{
-				if (m_skiptex < 15)
+				if(UserHacks_PSMhotkey)
 				{
-					m_skiptex = m_skiptex + 1;
-					theApp.SetConfig("skiptex", m_skiptex);
-					printf("Set skiptex to %d \n", m_skiptex);
+					if (m_SkipIso_PSM < 100)
+					{
+						m_SkipIso_PSM = m_SkipIso_PSM + 1;
+						theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+						printf("Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+					}
+					else
+					{
+						m_SkipIso_PSM =100;
+						theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+						printf("Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+					}
 				}
-				else
+			}
+			else
+			{
+				if (UserHacks_Skiptexhotkey)
 				{
-					m_skiptex =15;
-					theApp.SetConfig("skiptex", m_skiptex);
-					printf("Set skiptex to %d \n", m_skiptex);
+					if (m_skiptex < 15)
+					{
+						m_skiptex = m_skiptex + 1;
+						theApp.SetConfig("skiptex", m_skiptex);
+						printf("Set skiptex to %d \n", m_skiptex);
+					}
+					else
+					{
+						m_skiptex =15;
+						theApp.SetConfig("skiptex", m_skiptex);
+						printf("Set skiptex to %d \n", m_skiptex);
+					}
 				}
 			}
 			return;
 		case VK_NEXT:
-			if (m_hotkeycheck )
+			if(GetKeyState(VK_SHIFT)&0x8000)
 			{
-				if (m_skiptex > 0) 
+				if(UserHacks_PSMhotkey)
 				{
-					m_skiptex = m_skiptex - 1;
-					theApp.SetConfig("skiptex", m_skiptex);
-					printf("Set skiptex to %d \n", m_skiptex);
+					if (m_SkipIso_PSM > 0) 
+					{
+						m_SkipIso_PSM = m_SkipIso_PSM - 1;
+						theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+						printf("Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+					}
+					else
+					{
+						m_SkipIso_PSM =0;
+						theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+						printf("Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+					}
 				}
-				else
+			}
+			else
+			{
+				if(UserHacks_Skiptexhotkey)
 				{
-					m_skiptex =0;
-					theApp.SetConfig("skiptex", m_skiptex);
-					printf("Set skiptex to %d \n", m_skiptex);
+					if (m_skiptex > 0) 
+					{
+						m_skiptex = m_skiptex - 1;
+						theApp.SetConfig("skiptex", m_skiptex);
+						printf("Set skiptex to %d \n", m_skiptex);
+					}
+					else
+					{
+						m_skiptex =0;
+						theApp.SetConfig("skiptex", m_skiptex);
+						printf("Set skiptex to %d \n", m_skiptex);
+					}
 				}
 			}
 			return;
@@ -656,11 +712,17 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 			fprintf(stderr,"GSdx: (Software) mipmapping is now %s.\n", m_mipmap ? "enabled" : "disabled");
 			return;
 		case XK_HOME:
-			if (m_hotkeycheck )
+			if (UserHacks_Skiptexhotkey)
 			{
 				m_skiptex = 0;
 				theApp.SetConfig("skiptex", m_skiptex);
 				fprintf(stderr,"Set skiptex to %d \n", m_skiptex);
+			}
+			else if(UserHacks_PSMhotkey && GetKeyState(VK_SHIFT)&0x8000)
+			{
+				m_SkipIso_PSM = 0;
+				theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+				fprintf(stderr,"Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
 			}
 			return;	
 		case XK_END:
@@ -672,7 +734,7 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 			fprintf(stderr,"GSdx: External post-processing is now %s.\n", m_shaderfx ? "enabled" : "disabled");
 			return;
 	  case XK_PRIOR:
-		    if (m_hotkeycheck )
+		    if (UserHacks_Skiptexhotkey)
 			{
 				if (m_skiptex < 15)
 				{
@@ -687,9 +749,24 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 					fprintf(stderr,"Set skiptex to %d \n", m_skiptex);
 				}
 			}
+			if(UserHacks_PSMhotkey && GetKeyState(VK_SHIFT)&0x8000)
+			{
+				if (m_SkipIso_PSM < 100)
+				{
+					m_SkipIso_PSM = m_SkipIso_PSM + 1;
+					theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+					fprintf(stderr,"Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+				}
+				else
+				{
+					m_skiptex =100;
+					theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+					fprintf(stderr,"Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+				}
+			}
 			return;
 		case XK_NEXT:
-			if (m_hotkeycheck )
+			if (UserHacks_Skiptexhotkey)
 			{
 				if (m_skiptex > 0) 
 				{
@@ -702,6 +779,21 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 					m_skiptex =0;
 					theApp.SetConfig("skiptex", m_skiptex);
 					fprintf(stderr,"Set skiptex to %d \n", m_skiptex);
+				}
+			}
+			else if(UserHacks_PSMhotkey && GetKeyState(VK_SHIFT)&0x8000)
+			{
+				if (m_SkipIso_PSM > 0) 
+				{
+					m_SkipIso_PSM = m_SkipIso_PSM - 1;
+					theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+					fprintf(stderr,"Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
+				}
+				else
+				{
+					m_SkipIso_PSM =0;
+					theApp.SetConfig("SkipIso_PSM", m_SkipIso_PSM);
+					fprintf(stderr,"Set SkipIso_PSM to %d \n", m_SkipIso_PSM);
 				}
 			}
 			return;

@@ -4383,7 +4383,6 @@ bool GSC_DevilMayCry3(const GSFrameInfo& fi, int& skip)
 {
 	if(skip == 0)
 	{
-
 		if(fi.TME && fi.FBP == 0x01800 && fi.FPSM == PSM_PSMCT16 && fi.TBP0 == 0x01000 && fi.TPSM == PSM_PSMZ16)
 		{
 			skip = 32;
@@ -4409,6 +4408,10 @@ bool GSC_DevilMayCry3(const GSFrameInfo& fi, int& skip)
 			else if(fi.TME && fi.FPSM == fi.TPSM &&fi.FBP==0x0800 &&(fi.TBP0==0x1800)&& fi.TZTST ==1)
 			{
 				skip = 0;
+			}
+			else if(fi.TME ==1 &&fi.FBP==0x0800 && (fi.TBP0==0x0000 || fi.TBP0==0x1800 || fi.TBP0==0x1a00)&& fi.FBMSK ==0xFF000000)
+			{
+				skip = 1;
 			}
 		}
 	}

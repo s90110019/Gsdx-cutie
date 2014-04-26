@@ -31,7 +31,7 @@ GSTextureCache::GSTextureCache(GSRenderer* r)
 	UserHacks_NVIDIAHack = !!theApp.GetConfig("UserHacks_NVIDIAHack", 0) && !!theApp.GetConfig("UserHacks", 0);
 	m_paltex = !!theApp.GetConfig("paltex", 0);
 	m_skiptex = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("skiptex", 0): 0;
-	m_hotkeycheck = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_HotkeyCheck", 0);
+	UserHacks_Skiptexhotkey = !!theApp.GetConfig("UserHacks", 0) && !!theApp.GetConfig("UserHacks_Skiptexhotkey", 0);
 	
 	m_temp = (uint8*)_aligned_malloc(1024 * 1024 * sizeof(uint32), 32);
 }
@@ -594,7 +594,7 @@ GSTextureCache::Source* GSTextureCache::CreateSource(const GIFRegTEX0& TEX0, con
 
 	bool hack = false;
 	
-	if (m_hotkeycheck )
+	if (UserHacks_Skiptexhotkey)
 	{
 		m_skiptex = theApp.GetConfig("skiptex", 0);
 	}

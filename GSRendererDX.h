@@ -27,8 +27,9 @@ class GSRendererDX : public GSRendererHW
 {
 	GSVector2 m_pixelcenter;
 	int m_SkipIso;
-	int m_SkipIso_ztstnum;
-	int m_SkipIso_zwenum;
+	int m_SkipIso_primclass;
+	int m_SkipIso_FBMSK;
+	int m_SkipIso_PSM;
 	
 	bool m_logz;
 	bool m_fba;
@@ -36,8 +37,10 @@ class GSRendererDX : public GSRendererHW
 	bool UserHacks_AlphaHack;
 	bool UserHacks_AlphaStencil;
 	bool UserHacks_SkipPostProcessing;
-	bool UserHacks_SkipIso_ztstnum;
-	bool UserHacks_SkipIso_zwenum;
+	bool UserHacks_SkipIso_primclass;
+	bool UserHacks_SkipIso_FBMSK;
+	bool UserHacks_SkipIso_PSM;
+	bool UserHacks_PSMhotkey;
 
 protected:
 	virtual void DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* tex);

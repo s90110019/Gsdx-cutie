@@ -108,7 +108,7 @@ protected:
 	SourceMap m_src;
 	list<Target*> m_dst[2];
 	bool m_paltex;
-	bool m_hotkeycheck;
+	bool UserHacks_Skiptexhotkey;
 	int m_spritehack;
 	int m_skiptex;
 	uint8* m_temp;

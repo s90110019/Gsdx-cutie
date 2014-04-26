@@ -590,15 +590,19 @@ void GSHacksDlg::OnInit()
 	CheckDlgButton(m_hWnd, IDC_ALPHASTENCIL, theApp.GetConfig("UserHacks_AlphaStencil", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_NVIDIA_HACK, theApp.GetConfig("UserHacks_NVIDIAHack", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_DISABLE_ALL_HACKS, theApp.GetConfig("UserHacks_DisableCrcHacks", 0));
-	CheckDlgButton(m_hWnd, IDC_HOTKEYCHECKHACK, theApp.GetConfig("UserHacks_HotkeyCheck", 0));
+	CheckDlgButton(m_hWnd, IDC_SKIPTEXHOTKEY, theApp.GetConfig("UserHacks_Skiptexhotkey", 0));
+	CheckDlgButton(m_hWnd, IDC_PSMHOTKEY, theApp.GetConfig("UserHacks_PSMhotkey", 0));
 	CheckDlgButton(m_hWnd, IDC_SKIPPOSTPROCESSING, theApp.GetConfig("UserHacks_SkipPostProcessing", 0));
 	CheckDlgButton(m_hWnd, IDC_SKIPISO, theApp.GetConfig("UserHacks_SkipIso", 0));
-	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM, theApp.GetConfig("UserHacks_Check_SkipIso_ztstnum", 0));
-	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM, theApp.GetConfig("UserHacks_Check_SkipIso_zwenum", 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_ztstnum", 0), 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_zwenum", 0), 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS, theApp.GetConfig("UserHacks_Check_SkipIso_primclass", 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_FBMSK, theApp.GetConfig("UserHacks_Check_SkipIso_FBMSK", 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PSM, theApp.GetConfig("UserHacks_Check_SkipIso_PSM", 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_primclass", 0), 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_FBMSK", 0), 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_PSM", 0), 0));
 
 	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPDRAWHACK), UDM_SETRANGE, 0, MAKELPARAM(1000, 0));
 	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPDRAWHACK), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("UserHacks_SkipDraw", 0), 0));
@@ -620,17 +624,22 @@ void GSHacksDlg::OnInit()
 void GSHacksDlg::UpdateControls()
 {		
 	CheckDlgButton(m_hWnd, IDC_SKIPISO, theApp.GetConfig("UserHacks_SkipIso", 0));
-	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM, theApp.GetConfig("UserHacks_Check_SkipIso_zwenum", 0));
-	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM, theApp.GetConfig("UserHacks_Check_SkipIso_ztstnum", 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_zwenum", 0), 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
-	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_ztstnum", 0), 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS, theApp.GetConfig("UserHacks_Check_SkipIso_primclass", 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_FBMSK, theApp.GetConfig("UserHacks_Check_SkipIso_FBMSK", 0));
+	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PSM, theApp.GetConfig("UserHacks_Check_SkipIso_PSM", 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETRANGE, 0, MAKELPARAM(3, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_primclass", 0), 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_FBMSK", 0), 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_SETRANGE, 0, MAKELPARAM(100, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_PSM", 0), 0));
 	
-	EnableWindow(GetDlgItem(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM), (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
-	EnableWindow(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM) &&(int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
-	EnableWindow(GetDlgItem(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM), (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
-	EnableWindow(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM) &&(int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS), (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS) &&(int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_CHECK_SKIPISO_FBMSK), (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_FBMSK) &&(int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_CHECK_SKIPISO_PSM), (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+	EnableWindow(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PSM) &&(int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
 	
 }
 
@@ -710,33 +719,47 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 						  "CrcHacksExclusions=0x0F0C4A9C, 0x0EE5646B, 0x7ACF7E03";
 				break;
 			case IDC_SKIPPOSTPROCESSING:
-				helpstr = "Try to fix fog";
+				helpstr = "Try to fix fog or blur";
 				break;
 			case IDC_skiptexEDIT:
 			case IDC_skiptex:
 			case IDC_STATIC_TEXT_skiptex:
-				helpstr = "Try to fix ghosting or fog, range:0-15\n\n"
-						  "Hotkey:Home¡BPageUp¡BPageDown, must check with Enable Hotkey¡C\n\n"
-						  "May cause black screen";
+				helpstr = "Try to clear ghosting or fog, range:0-15\n\n"
+						  "Hotkey:Home¡BPageUp¡BPageDown, must check with Enable Hotkey.\n\n"
+						  "May cause black screen or remove some effect";
 				break;
 			case IDC_SKIPISO:
-				helpstr = "Try to fix the darker or blur";
+				helpstr = "Try to clear ghosting or fog or blur, may be others\n\n"
+						  "May cause black screen or remove some effect";
 				break;
-			case IDC_SKIPISO_ZTSTNUMEDIT:
-			case IDC_SKIPISO_ZTSTNUM:
-			case IDC_CHECK_SKIPISO_ZTSTNUM:
-				helpstr = "ZTSTNUM:Make exact for SkipIso\n\n"
-						  "If no check this button the number cant be use";
+			case IDC_SKIPISO_PRIMCLASSEDIT:
+			case IDC_SKIPISO_PRIMCLASS:
+			case IDC_CHECK_SKIPISO_PRIMCLASS:
+				helpstr = "PRIMCLASS:limited for SkipIso range\n\n"
+						  "If no check this button the number cant be use.";
 				break;
-			case IDC_SKIPISO_ZWENUMEDIT:
-			case IDC_SKIPISO_ZWENUM:
-			case IDC_CHECK_SKIPISO_ZWENUM:
-				helpstr = "ZWENUM:Make exact for SkipIso\n\n"
-						  "If no check this button the number cant be use";
+			case IDC_SKIPISO_FBMSKEDIT:
+			case IDC_SKIPISO_FBMSK:
+			case IDC_CHECK_SKIPISO_FBMSK:
+				helpstr = "FBMSK:limited for SkipIso range\n\n"
+						  "If no check this button the number cant be use.";
 				break;
-			case IDC_HOTKEYCHECKHACK:
+			case IDC_SKIPISO_PSMEDIT:
+			case IDC_SKIPISO_PSM:
+			case IDC_CHECK_SKIPISO_PSM:
+				helpstr = "PSM:limited for SkipIso range\n\n"
+						  "If no check this button the number cant be use.\n\n"
+						  "The often used number is 0 or 1 or 19.";
+				break;
+			case IDC_SKIPTEXHOTKEY:
 				helpstr = "Enable Skiptex's Hotkey,\n\n"
+						  "Speed down!! only for find skiptex number\n\n"						  
 						  "Home:return 0¡BPageUp:+1¡BPageDown:-1";
+				break;
+			case IDC_PSMHOTKEY:
+				helpstr = "Enable Skipiso_PSM Hotkey,\n\n"
+						  "Speed down!! only for find Skipiso_PSM number\n\n"
+						  "Shift && Home:return 0¡BShift && PageUp:+1¡BShift && PageDown:-1";
 				break;
 			case IDC_TCOFFSETX:
 			case IDC_TCOFFSETX2:
@@ -768,18 +791,27 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case IDC_SKIPISO:
 			theApp.SetConfig("UserHacks_SkipIso", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
+			theApp.SetConfig("UserHacks_Check_SkipIso_primclass", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS));
+			theApp.SetConfig("SkipIso_FBMSK", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("SkipIso_PSM", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_GETPOS, 0, 0));
 			UpdateControls();
 			break;
-		case IDC_CHECK_SKIPISO_ZWENUM:
-			theApp.SetConfig("UserHacks_Check_SkipIso_zwenum", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM));
-			theApp.SetConfig("SkipIso_zwenum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_GETPOS, 0, 0));
-			theApp.SetConfig("SkipIso_ztstnum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_GETPOS, 0, 0));
+		case IDC_CHECK_SKIPISO_PRIMCLASS:
+			theApp.SetConfig("UserHacks_Check_SkipIso_primclass", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS));
+			theApp.SetConfig("SkipIso_FBMSK", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("SkipIso_PSM", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_GETPOS, 0, 0));
 			UpdateControls();
 			break;
-		case IDC_CHECK_SKIPISO_ZTSTNUM:
-			theApp.SetConfig("UserHacks_Check_SkipIso_ztstnum", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM));
-			theApp.SetConfig("SkipIso_zwenum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_GETPOS, 0, 0));
-			theApp.SetConfig("SkipIso_ztstnum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_GETPOS, 0, 0));
+		case IDC_CHECK_SKIPISO_FBMSK:
+			theApp.SetConfig("UserHacks_Check_SkipIso_FBMSK", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_FBMSK));
+			theApp.SetConfig("UserHacks_Check_SkipIso_primclass", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS));
+			theApp.SetConfig("SkipIso_PSM", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_GETPOS, 0, 0));
+			UpdateControls();
+			break;
+		case IDC_CHECK_SKIPISO_PSM:
+			theApp.SetConfig("UserHacks_Check_SkipIso_PSM", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PSM));
+			theApp.SetConfig("UserHacks_Check_SkipIso_primclass", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS));
+			theApp.SetConfig("SkipIso_FBMSK", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_GETPOS, 0, 0));
 			UpdateControls();
 			break;
 		case IDOK: 
@@ -794,13 +826,16 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 			theApp.SetConfig("UserHacks_AlphaStencil", (int)IsDlgButtonChecked(m_hWnd, IDC_ALPHASTENCIL));
 			theApp.SetConfig("UserHacks_NVIDIAHack", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_NVIDIA_HACK));
 			theApp.SetConfig("UserHacks_DisableCrcHacks", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_DISABLE_ALL_HACKS));
-			theApp.SetConfig("UserHacks_HotkeyCheck", (int)IsDlgButtonChecked(m_hWnd, IDC_HOTKEYCHECKHACK));
+			theApp.SetConfig("UserHacks_Skiptexhotkey", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPTEXHOTKEY));
+			theApp.SetConfig("UserHacks_PSMhotkey", (int)IsDlgButtonChecked(m_hWnd, IDC_PSMHOTKEY));
 			theApp.SetConfig("UserHacks_SkipPostProcessing", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPPOSTPROCESSING));
 			theApp.SetConfig("UserHacks_SkipIso", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPISO));
-			theApp.SetConfig("UserHacks_Check_SkipIso_zwenum", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZWENUM));
-			theApp.SetConfig("UserHacks_Check_SkipIso_ztstnum", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_ZTSTNUM));
-			theApp.SetConfig("SkipIso_zwenum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZWENUM), UDM_GETPOS, 0, 0));
-			theApp.SetConfig("SkipIso_ztstnum", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_ZTSTNUM), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("UserHacks_Check_SkipIso_primclass", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS));
+			theApp.SetConfig("UserHacks_Check_SkipIso_FBMSK", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_FBMSK));
+			theApp.SetConfig("UserHacks_Check_SkipIso_PSM", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_SKIPISO_PSM));
+			theApp.SetConfig("SkipIso_primclass", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("SkipIso_FBMSK", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("SkipIso_PSM", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("skiptex", (int)SendMessage(GetDlgItem(m_hWnd, IDC_skiptex), UDM_GETPOS, 0, 0));
 
 			unsigned int TCOFFSET  =  SendMessage(GetDlgItem(m_hWnd, IDC_TCOFFSETX), UDM_GETPOS, 0, 0) & 0xFFFF;
