@@ -29,11 +29,21 @@ GSRendererHW::GSRendererHW(GSTextureCache* tc)
 	, m_reset(false)
 	, m_upscale_multiplier(1)
 	, m_tc(tc)
-	, m_UserHacks_SkipPostProcessing (0)
+	, m_UserHacks_SkipPostProcessing(0)
+	, m_HDmode(1)
+	, m_customhdrev(0)
+	, m_scalex(1024)
+	, m_scaley(256)
 {
 	m_upscale_multiplier = theApp.GetConfig("upscale_multiplier", 1);
 	m_userhacks_skipdraw = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_SkipDraw", 0) : 0;
+	m_userhacks_align_sprite_X = !!theApp.GetConfig("UserHacks_align_sprite_X", 0) && !!theApp.GetConfig("UserHacks", 0);
+	m_userhacks_round_sprite_offset = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_round_sprite_offset", 0) : 0;
 	m_UserHacks_SkipPostProcessing = theApp.GetConfig("UserHacks_SkipPostProcessing", m_userhacks_skipdraw);
+	m_HDmode = theApp.GetConfig("HDmode", m_HDmode);
+	m_customhdrev = theApp.GetConfig("customhdrev", m_customhdrev);
+	m_scalex = theApp.GetConfig("scalex", m_scalex);
+	m_scaley = theApp.GetConfig("scaley", m_scaley);
 
 	if(!m_nativeres)
 	{
@@ -42,11 +52,11 @@ GSRendererHW::GSRendererHW(GSTextureCache* tc)
 
 		m_upscale_multiplier = theApp.GetConfig("upscale_multiplier", m_upscale_multiplier);
 
-		if(m_upscale_multiplier > 6)
+		if (m_upscale_multiplier > 6)
 		{
 			m_upscale_multiplier = 1; // use the normal upscale math
 		}
-		else if(m_upscale_multiplier > 1)
+		else if (m_upscale_multiplier > 1)
 		{
 			m_width = 640 * m_upscale_multiplier; // 512 is also common, but this is not always detected right.
 			m_height = 512 * m_upscale_multiplier; // 448 is also common, but this is not always detected right.
@@ -55,6 +65,12 @@ GSRendererHW::GSRendererHW(GSTextureCache* tc)
 	else
 	{
 		m_upscale_multiplier = 1;
+	}
+
+	if (m_upscale_multiplier == 1) {
+		// No upscaling hack at native resolution
+		m_userhacks_round_sprite_offset = 0;
+		m_userhacks_align_sprite_X = 0;
 	}
 }
 
@@ -72,6 +88,11 @@ void GSRendererHW::SetGameCRC(uint32 crc, int options)
 	if(m_game.title == CRC::JackieChanAdv)
 	{
 		m_width = 1280; // TODO: uses a 1280px wide 16 bit render target, but this only fixes half of the problem
+	}
+	if (m_upscale_multiplier > 1 && m_game.title == CRC::StuntmanIgnition)
+	{
+		m_width = 1024 * m_upscale_multiplier; // 512 is also common, but this is not always detected right.
+		m_height = 1024 * m_upscale_multiplier; // 448 is also common, but this is not always detected right.
 	}
 }
 
@@ -145,11 +166,11 @@ GSTexture* GSRendererHW::GetOutput(int i)
 		{
 			if(s_save && s_n >= s_saven)
 			{
-				t->Save(format("c:\\temp2\\_%05d_f%lld_fr%d_%05x_%d.bmp", s_n, m_perfmon.GetFrame(), i, (int)TEX0.TBP0, (int)TEX0.PSM));
+				t->Save(root_hw + format("%05d_f%lld_fr%d_%05x_%d.bmp", s_n, m_perfmon.GetFrame(), i, (int)TEX0.TBP0, (int)TEX0.PSM));
 			}
-
-			s_n++;
 		}
+		
+		s_n++; // Alaways increment it
 	}
 
 	return t;
@@ -171,11 +192,143 @@ void GSRendererHW::InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GS
 	m_tc->InvalidateLocalMem(m_mem.GetOffset(BITBLTBUF.SBP, BITBLTBUF.SBW, BITBLTBUF.SPSM), r);
 }
 
+int GSRendererHW::Interpolate_UV(float alpha, int t0, int t1)
+{
+	float t = (1.0f - alpha) * t0 + alpha * t1;
+	return (int)t & ~0xF; // cheap rounding
+}
+
+float GSRendererHW::alpha0(int L, int X0, int X1)
+{
+	float x = (X0 + 15) & ~0xF; // Round up
+	return (x - X0) / (float)L;
+}
+
+float GSRendererHW::alpha1(int L, int X0, int X1)
+{
+	float x = (X1 - 1) & ~0xF; // Round down. Note -1 because right pixel isn't included in primitive so 0x100 must return 0.
+	return (x - X0) / (float)L;
+}
+
+template <bool linear>
+void GSRendererHW::RoundSpriteOffset()
+{
+//#define DEBUG_U
+//#define DEBUG_V
+#if defined(DEBUG_V) || defined(DEBUG_U)
+	bool debug = linear;
+#endif
+	size_t count = m_vertex.next;
+	GSVertex* v = &m_vertex.buff[0];
+
+	for(size_t i = 0; i < count; i += 2) {
+		// Performance note: if it had any impact on perf, someone would port it to SSE (AKA GSVector)
+
+		// Compute the coordinate of first and last texels (in native with a linear filtering)
+		int   ox  = m_context->XYOFFSET.OFX;
+		int   X0  = v[i].XYZ.X   - ox;
+		int   X1  = v[i+1].XYZ.X - ox;
+		int   Lx  = (v[i+1].XYZ.X - v[i].XYZ.X);
+		float ax0 = alpha0(Lx, X0, X1);
+		float ax1 = alpha1(Lx, X0, X1);
+		int   tx0 = Interpolate_UV(ax0, v[i].U, v[i+1].U);
+		int   tx1 = Interpolate_UV(ax1, v[i].U, v[i+1].U);
+#ifdef DEBUG_U
+		if (debug) {
+			fprintf(stderr, "u0:%d and u1:%d\n", v[i].U, v[i+1].U);
+			fprintf(stderr, "a0:%f and a1:%f\n", ax0, ax1);
+			fprintf(stderr, "t0:%d and t1:%d\n", tx0, tx1);
+		}
+#endif
+
+		int   oy  = m_context->XYOFFSET.OFY;
+		int   Y0  = v[i].XYZ.Y   - oy;
+		int   Y1  = v[i+1].XYZ.Y - oy;
+		int   Ly  = (v[i+1].XYZ.Y - v[i].XYZ.Y);
+		float ay0 = alpha0(Ly, Y0, Y1);
+		float ay1 = alpha1(Ly, Y0, Y1);
+		int   ty0 = Interpolate_UV(ay0, v[i].V, v[i+1].V);
+		int   ty1 = Interpolate_UV(ay1, v[i].V, v[i+1].V);
+#ifdef DEBUG_V
+		if (debug) {
+			fprintf(stderr, "v0:%d and v1:%d\n", v[i].V, v[i+1].V);
+			fprintf(stderr, "a0:%f and a1:%f\n", ay0, ay1);
+			fprintf(stderr, "t0:%d and t1:%d\n", ty0, ty1);
+		}
+#endif
+
+#ifdef DEBUG_U
+		if (debug)
+			fprintf(stderr, "GREP_BEFORE %d => %d\n", v[i].U, v[i+1].U);
+#endif
+#ifdef DEBUG_V
+		if (debug)
+			fprintf(stderr, "GREP_BEFORE %d => %d\n", v[i].V, v[i+1].V);
+#endif
+
+#if 1
+		// Use rounded value of the newly computed texture coordinate. It ensures
+		// that sampling will remains inside texture boundary
+		//
+		// Note for bilinear: by definition it will never work correctly! A sligh modification
+		// of interpolation migth trigger a discard (with alpha testing)
+		// Let's use something simple that correct really bad case (for a couple of 2D games).
+		// I hope it won't create too much glitches.
+		if (linear) {
+			int Lu = v[i+1].U - v[i].U;
+			// Note 32 is based on taisho-mononoke
+			if ((Lu > 0) && (Lu <= (Lx+32))) {
+				v[i+1].U -= 8;
+			}
+		} else {
+			if (tx0 <= tx1) {
+				v[i].U   = tx0;
+				v[i+1].U = tx1 + 16;
+			} else {
+				v[i].U   = tx0 + 15;
+				v[i+1].U = tx1;
+			}
+		}
+#endif
+#if 1
+		if (linear) {
+			int Lv = v[i+1].V - v[i].V;
+			if ((Lv > 0) && (Lv <= (Ly+32))) {
+				v[i+1].V -= 8;
+			}
+		} else {
+			if (ty0 <= ty1) {
+				v[i].V   = ty0;
+				v[i+1].V = ty1 + 16;
+			} else {
+				v[i].V   = ty0 + 15;
+				v[i+1].V = ty1;
+			}
+		}
+#endif
+
+#ifdef DEBUG_U
+		if (debug)
+			fprintf(stderr, "GREP_AFTER %d => %d\n\n", v[i].U, v[i+1].U);
+#endif
+#ifdef DEBUG_V
+		if (debug)
+			fprintf(stderr, "GREP_AFTER %d => %d\n\n", v[i].V, v[i+1].V);
+#endif
+
+	}
+}
+
 void GSRendererHW::Draw()
 {
-	if(m_dev->IsLost()) return;
-
-	if(GSRenderer::IsBadFrame(m_skip, m_userhacks_skipdraw)) return;
+	if(m_dev->IsLost() || GSRenderer::IsBadFrame(m_skip, m_userhacks_skipdraw)) {
+		if (s_dump) {
+			fprintf(stderr, "Warning skipping a draw call (%d)\n", s_n);
+		}
+		s_n += 3; // Keep it sync with SW renderer
+		return;
+	}
+	GL_PUSH("HW Draw %d", s_n);
 
 	GSDrawingEnvironment& env = m_env;
 	GSDrawingContext* context = m_context;
@@ -222,9 +375,9 @@ void GSRendererHW::Draw()
 		tex = m_tc->LookupSource(context->TEX0, env.TEXA, r);
 
 		if(!tex) return;
-		if(m_UserHacks_SkipPostProcessing || m_game.title == CRC::FinalFightStreetwise || m_game.title == CRC::ShadowofRome)
+		if (m_UserHacks_SkipPostProcessing || m_game.title == CRC::FinalFightStreetwise || m_game.title == CRC::ShadowofRome)
 		{
-			if(m_context->TEX0.PSM == PSM_PSMT8H && *tex->m_clut >= 0xFFFFFFF && m_vt.m_primclass ==3) return;
+			if (m_context->TEX0.PSM == PSM_PSMT8H && *tex->m_clut >= 0xFFFFFFF && m_vt.m_primclass == 3) return;
 		}
 
 		if(GSLocalMemory::m_psm[context->TEX0.PSM].pal > 0)
@@ -239,21 +392,21 @@ void GSRendererHW::Draw()
 
 		string s;
 
-		if(s_save && s_n >= s_saven && tex)
+		if(s_savet && s_n >= s_saven && tex)
 		{
-			s = format("c:\\temp2\\_%05d_f%lld_tex_%05x_%d_%d%d_%02x_%02x_%02x_%02x.dds",
+			s = format("%05d_f%lld_tex_%05x_%d_%d%d_%02x_%02x_%02x_%02x.dds",
 				s_n, frame, (int)context->TEX0.TBP0, (int)context->TEX0.PSM,
 				(int)context->CLAMP.WMS, (int)context->CLAMP.WMT,
 				(int)context->CLAMP.MINU, (int)context->CLAMP.MAXU,
 				(int)context->CLAMP.MINV, (int)context->CLAMP.MAXV);
 
-			tex->m_texture->Save(s, true);
+			tex->m_texture->Save(root_hw+s, true);
 
 			if(tex->m_palette)
 			{
-				s = format("c:\\temp2\\_%05d_f%lld_tpx_%05x_%d.dds", s_n, frame, context->TEX0.CBP, context->TEX0.CPSM);
+				s = format("%05d_f%lld_tpx_%05x_%d.dds", s_n, frame, context->TEX0.CBP, context->TEX0.CPSM);
 
-				tex->m_palette->Save(s, true);
+				tex->m_palette->Save(root_hw+s, true);
 			}
 		}
 
@@ -261,19 +414,31 @@ void GSRendererHW::Draw()
 
 		if(s_save && s_n >= s_saven)
 		{
-			s = format("c:\\temp2\\_%05d_f%lld_rt0_%05x_%d.bmp", s_n, frame, context->FRAME.Block(), context->FRAME.PSM);
+			s = format("%05d_f%lld_rt0_%05x_%d.bmp", s_n, frame, context->FRAME.Block(), context->FRAME.PSM);
 
-			rt->m_texture->Save(s);
+			rt->m_texture->Save(root_hw+s);
 		}
 
 		if(s_savez && s_n >= s_saven)
 		{
-			s = format("c:\\temp2\\_%05d_f%lld_rz0_%05x_%d.bmp", s_n, frame, context->ZBUF.Block(), context->ZBUF.PSM);
+			s = format("%05d_f%lld_rz0_%05x_%d.bmp", s_n, frame, context->ZBUF.Block(), context->ZBUF.PSM);
 
-			ds->m_texture->Save(s);
+			ds->m_texture->Save(root_hw+s);
 		}
 
 		s_n++;
+
+		if (s_n >= s_saven) {
+			// Dump Register state
+			s = format("%05d_context.txt", s_n);
+
+			m_env.Dump(root_hw+s);
+			m_context->Dump(root_hw+s);
+		}
+#ifdef ENABLE_OGL_DEBUG
+	} else {
+		s_n += 2;
+#endif
 	}
 
 	if(m_hacks.m_oi && !(this->*m_hacks.m_oi)(rt->m_texture, ds->m_texture, tex))
@@ -301,10 +466,762 @@ void GSRendererHW::Draw()
 	context->FRAME.FBMSK = fm;
 	context->ZBUF.ZMSK = zm != 0;
 
+	// A couple of hack to avoid upscaling issue. So far it seems to impacts mostly sprite
+	if ((m_upscale_multiplier > 1) && (m_vt.m_primclass == GS_SPRITE_CLASS)) {
+		size_t count = m_vertex.next;
+		GSVertex* v = &m_vertex.buff[0];
+
+		// Hack to avoid vertical black line in various games (ace combat/tekken)
+		if (m_userhacks_align_sprite_X) {
+			// Note for performance reason I do the check only once on the first
+			// primitive
+			int win_position = v[1].XYZ.X - context->XYOFFSET.OFX;
+			const bool unaligned_position = ((win_position & 0xF) == 8);
+			const bool unaligned_texture  = ((v[1].U & 0xF) == 0) && PRIM->FST; // I'm not sure this check is useful
+			const bool hole_in_vertex = (count < 4) || (v[1].XYZ.X != v[2].XYZ.X);
+			if (hole_in_vertex && unaligned_position && (unaligned_texture || !PRIM->FST)) {
+				// Normaly vertex are aligned on full pixels and texture in half
+				// pixels. Let's extend the coverage of an half-pixel to avoid
+				// hole after upscaling
+				for(size_t i = 0; i < count; i += 2) {
+					v[i+1].XYZ.X += 8;
+					// I really don't know if it is a good idea. Neither what to do for !PRIM->FST
+					if (unaligned_texture)
+						v[i+1].U += 8;
+				}
+			}
+		}
+
+		if (PRIM->FST) {
+			if ((m_userhacks_round_sprite_offset > 1) || (m_userhacks_round_sprite_offset == 1 && !m_vt.IsLinear())) {
+				if (m_vt.IsLinear())
+					RoundSpriteOffset<true>();
+				else
+					RoundSpriteOffset<false>();
+			}
+		} else {
+			; // vertical line in Yakuza (note check m_userhacks_align_sprite_X behavior)
+		}
+	}
+
 	//
+	
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 ZBP = m_context->ZBUF.Block();
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TME = PRIM->TME;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
 
-	DrawPrims(rt->m_texture, ds->m_texture, tex);
+	if (m_game.title == CRC::Drakengard2 && m_HDmode > 1)
+	{
+		m_HDmode = 55;
+	}
 
+	if ((m_game.title == CRC::UrbanReign || m_game.title == CRC::SoulCalibur2 || m_game.title == CRC::SoulCalibur3) && m_HDmode > 1)
+	{
+		m_HDmode = 12;
+	}
+
+	if ((m_game.title == CRC::Tekken5 || m_game.title == CRC::DeathByDegreesTekkenNinaWilliams || m_game.title == CRC::TalesofSymphonia) && m_HDmode > 1)
+	{
+		m_HDmode = 24;
+	}
+
+	if (m_game.title == CRC::Tekken4 && m_HDmode > 1)
+	{
+		m_HDmode = 17;
+	}
+
+	if ((m_game.title == CRC::TalesOfLegendia || m_game.title == CRC::Okami) && m_HDmode > 1)
+	{
+		m_HDmode = 4;
+	}
+
+	if (m_game.title == CRC::ShadowHearts2 && m_HDmode > 1)
+	{
+		m_HDmode = 32;
+	}
+
+	if ((m_game.title == CRC::GodOfWar2) && m_HDmode > 1)
+	{
+		m_HDmode = 56;
+	}
+	
+	if (m_game.title == CRC::FFXII && m_HDmode > 1)
+	{
+		m_HDmode = 52;
+	}
+	
+	if (m_game.title == CRC::RogueGalaxy && m_HDmode > 1)
+	{
+		m_HDmode = 8;
+	}
+	int w = GetDeviceSize().x;
+	int h = GetDeviceSize().y;
+	
+	int tw = (int)(1 << context->TEX0.TW);
+	int th = (int)(1 << context->TEX0.TH);
+	
+	/*if (GetKeyState(VK_SHIFT))
+	{
+		m_scaley = 596;
+	}
+	if (GetKeyState(VK_CONTROL))
+	{
+		m_scaley = 512;
+	}*/
+
+	if (m_customhdrev == 0)
+	{
+		m_scalex = tw;
+		m_scaley = th;
+
+	}
+	
+	switch (m_HDmode)
+	{
+	case 1:
+		DrawPrims(rt->m_texture, ds->m_texture, tex);
+		break;
+	case 2:
+		if (TME && FBP == 0)
+		{
+			float xcalc = (float)(m_scalex *rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley *rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 3:
+		if (TME && FBP==0 && TPSM == 0)
+		{
+			float xcalc = (float)(m_scalex *rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley *rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 4:
+		if (TME && FBP == 0 && TPSM == 0 && FBMSK==0)
+		{
+			float xcalc = (float)(m_scalex *rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley *rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 5:
+		if (TME && FBP == 0 && TPSM==1)
+		{
+			float xcalc = (float)(m_scalex *rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley *rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 6:
+		if (TME && FBP == 0 && TPSM == 19)
+		{
+			float xcalc = (float)(m_scalex *rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley *rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 7:
+		if (TME && FBP == 0x0e00)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 8:
+		if (TME && FBP == 0x0e00 && TPSM==0)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 9:
+		if (TME && FBP == 0x0e00 && TPSM == 0 && FBMSK == 0)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 10:
+		if (TME && FBP == 0x0e00 && TPSM == 1)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 11:
+		if (TME && FBP == 0x0e00 && TPSM == 19)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 12:
+		if (TME && FBP==0x1180)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 13:
+		if (TME && FBP == 0x1180 && TPSM==0)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 14:
+		if (TME && FBP == 0x1180 && TPSM == 0 && FBMSK == 0)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 15:
+		if (TME && FBP == 0x1180 && TPSM == 1)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 16:
+		if (TME && FBP == 0x1180 && TPSM == 19)
+		{
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 17:
+		if (FBP == 6720){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 18:
+		if (FBP == 6720 && TPSM==0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 19:
+		if (FBP == 6720 && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 20:
+		if (FBP == 6720 && TPSM == 1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 21:
+		if (FBP == 6720 && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 22:
+		if (FBP == 8960){
+				float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+				float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+				m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 23:
+		if (FBP == 8960 && TPSM==0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 24:
+		if (FBP == 8960 && TPSM == 0){
+			if (h <= 256)
+			{
+				float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+				float ycalc = (float)((m_scaley / 2)*rt->m_texture->GetScale().y);
+				m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+			}
+			else
+			{
+				float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+				float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+				m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+			}
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 25:
+		if (FBP == 8960 && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 26:
+		if (FBP == 8960 && TPSM == 1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 27:
+		if (FBP == 8960 && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 28:
+		if (TME && FBP<=0x1180){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 29:
+		if (TME && FBP <= 0x1180 && TPSM == 0 ){
+				float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+				float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+				m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 30:
+		if (TME && FBP <= 0x1180 && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 31:
+		if (TME && FBP <= 0x1180 && TPSM ==1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 32:
+		if (TME && FBP <= 0x1180 && TPSM == 1 && TZTST==2){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 33:
+		if (TME && FBP <= 0x1180 && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 34:
+		if (TME && FBP > 0x1180 && FBP < 0x1C00){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 35:
+		if (TME && FBP > 0x1180 && FBP < 0x1C00 && TPSM == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 36:
+		if (TME && FBP > 0x1180 && FBP < 0x1C00 && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 37:
+		if (TME && FBP > 0x1180 && FBP < 0x1C00 && TPSM == 1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 38:
+		if (TME && FBP > 0x1180 && FBP < 0x1C00 && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 39:
+		if (TME && FBP >= 0x1c00 && FBP <= 0x2000){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 40:
+		if (TME && FBP >= 0x1c00 && FBP <= 0x2000 && TPSM == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 41:
+		if (TME && FBP >= 0x1c00 && FBP <= 0x2000 && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 42:
+		if (TME && FBP >= 0x1c00 && FBP <= 0x2000 && TPSM == 1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 43:
+		if (TME && FBP >= 0x1c00 && FBP <= 0x2000 && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 44:
+		if (TME && (FBP == 0 || FBP == 0x1180)){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 45:
+		if (TME && (FBP == 0 || FBP == 0x1180) && TPSM==0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 46:
+		if (TME && (FBP == 0 || FBP == 0x1180) && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 47:
+		if (TME && (FBP == 0 || FBP == 0x1180) && TPSM ==1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 48:
+		if (TME && (FBP == 0 || FBP == 0x1180) && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 49:
+		if (TME && (FBP == 0 || FBP == 0x0e00)){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 50:
+		if (TME && (FBP == 0 || FBP == 0x0e00) && TPSM == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 51:
+		if (TME && (FBP == 0 || FBP == 0x0e00) && TPSM == 0 && FBMSK == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 52:
+		if (TME && (FBP == 0 || FBP == 0x0e00) && TPSM == 0 && TZTST == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 53:
+		if (TME && (FBP == 0 || FBP == 0x0e00) && TPSM == 1){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 54:
+		if (TME && (FBP == 0 || FBP == 0x0e00) && TPSM == 19){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 55:
+		if (FBP == 0 && TBP == 2560){
+			float xcalc = (float)(1024.0f*rt->m_texture->GetScale().x);
+			float ycalc = (float)(480.0f*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else if (FBP == 0 && TBP == 4480){
+			float xcalc = (float)(1024.0f*rt->m_texture->GetScale().x);
+			float ycalc = (float)(960.0f*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	case 56:
+		if (TME && FBP == 0x1300 && TPSM == 0){
+			float xcalc = (float)(m_scalex*rt->m_texture->GetScale().x);
+			float ycalc = (float)(m_scaley*rt->m_texture->GetScale().y);
+			m_dev->StretchRect(tex->m_texture, rt->m_texture, GSVector4(0.0f, 0.0f, xcalc, ycalc));
+		}
+		else
+		{
+			DrawPrims(rt->m_texture, ds->m_texture, tex);
+		}
+		break;
+	}
+	
 	//
 
 	context->TEST = TEST;
@@ -344,19 +1261,27 @@ void GSRendererHW::Draw()
 
 		if(s_save && s_n >= s_saven)
 		{
-			s = format("c:\\temp2\\_%05d_f%lld_rt1_%05x_%d.bmp", s_n, frame, context->FRAME.Block(), context->FRAME.PSM);
+			s = format("%05d_f%lld_rt1_%05x_%d.bmp", s_n, frame, context->FRAME.Block(), context->FRAME.PSM);
 
-			rt->m_texture->Save(s);
+			rt->m_texture->Save(root_hw+s);
 		}
 
 		if(s_savez && s_n >= s_saven)
 		{
-			s = format("c:\\temp2\\_%05d_f%lld_rz1_%05x_%d.bmp", s_n, frame, context->ZBUF.Block(), context->ZBUF.PSM);
+			s = format("%05d_f%lld_rz1_%05x_%d.bmp", s_n, frame, context->ZBUF.Block(), context->ZBUF.PSM);
 
-			ds->m_texture->Save(s);
+			ds->m_texture->Save(root_hw+s);
 		}
 
 		s_n++;
+
+		if ((s_n - s_saven) > s_savel) {
+			s_dump = 0;
+		}
+#ifdef ENABLE_OGL_DEBUG
+	} else {
+		s_n += 1;
+#endif
 	}
 
 	#ifdef DISABLE_HW_TEXTURE_CACHE
@@ -364,6 +1289,8 @@ void GSRendererHW::Draw()
 	m_tc->Read(rt, r);
 
 	#endif
+
+	GL_POP();
 }
 
 // hacks
@@ -376,6 +1303,8 @@ GSRendererHW::Hacks::Hacks()
 	, m_oo(NULL)
 	, m_cu(NULL)
 {
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::SakigakeOtokojuku, CRC::RegionCount, &GSRendererHW::OI_SakigakeOtokojuku));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::HauntingGround, CRC::RegionCount, &GSRendererHW::OI_HauntingGround));
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::FFXII, CRC::EU, &GSRendererHW::OI_FFXII));
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::FFX, CRC::RegionCount, &GSRendererHW::OI_FFX));
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::MetalSlug6, CRC::RegionCount, &GSRendererHW::OI_MetalSlug6));
@@ -395,6 +1324,13 @@ GSRendererHW::Hacks::Hacks()
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::SpyroEternalNight, CRC::RegionCount, &GSRendererHW::OI_SpyroEternalNight));
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::TalesOfLegendia, CRC::RegionCount, &GSRendererHW::OI_TalesOfLegendia));
 	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::SMTNocturne, CRC::RegionCount, &GSRendererHW::OI_SMTNocturne));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::PoisonPink, CRC::RegionCount, &GSRendererHW::OI_PoisonPink));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::Simple2000Vol15, CRC::RegionCount, &GSRendererHW::OI_Simple2000Vol15));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::Mercenaries, CRC::RegionCount, &GSRendererHW::OI_Mercenaries2));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::Mercenaries2, CRC::RegionCount, &GSRendererHW::OI_Mercenaries2));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::Simple2000Vol55, CRC::RegionCount, &GSRendererHW::OI_Simple2000Vol55));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::Simple2000Vol30, CRC::RegionCount, &GSRendererHW::OI_Simple2000Vol30));
+	m_oi_list.push_back(HackEntry<OI_Ptr>(CRC::FD18, CRC::RegionCount, &GSRendererHW::OI_FD18));
 
 	m_oo_list.push_back(HackEntry<OO_Ptr>(CRC::DBZBT2, CRC::RegionCount, &GSRendererHW::OO_DBZBT2));
 	m_oo_list.push_back(HackEntry<OO_Ptr>(CRC::MajokkoALaMode2, CRC::RegionCount, &GSRendererHW::OO_MajokkoALaMode2));
@@ -419,6 +1355,68 @@ void GSRendererHW::Hacks::SetGameCRC(const CRC::Game& game)
 		m_oi = &GSRendererHW::OI_PointListPalette;
 	}
 }
+
+bool GSRendererHW::OI_SakigakeOtokojuku(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 TME = PRIM->TME;
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+
+
+	if (!TME && FBP == 0x1180 && FPSM == PSM_PSMCT24 && FBMSK == 0)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+	return true;
+}
+
+bool GSRendererHW::OI_HauntingGround(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 TME = PRIM->TME;
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+
+	if (!PRIM->TME)
+	{
+		if (FBP == 0x3000 && TPSM == PSM_PSMCT16S && FBMSK == 0x00FFFFFF)	//0x2800 pal, 0x2bc0 ntsc
+		{
+			m_dev->ClearDepth(ds, 0);
+		}
+	}
+	else if (PRIM->TME)
+	{
+		if ((FBP == 0x3000 || FBP == 0x3e00) && (TBP == 0x3d00 || TBP == 0x2200) && FPSM == PSM_PSMCT32 && m_context->TEST.ATE == 1)
+		{
+			GIFRegTEX0 TEX0;
+
+			TEX0.TBP0 = FBP;
+			TEX0.TBW = FBW;
+			TEX0.PSM = FPSM;
+
+			if (GSTextureCache::Target* ds = m_tc->LookupTarget(TEX0, m_width, m_height, GSTextureCache::DepthStencil, true))
+			{
+				m_dev->ClearDepth(ds->m_texture, 0);
+			}
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
 
 bool GSRendererHW::OI_Siren(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
 	{
@@ -564,8 +1562,19 @@ bool GSRendererHW::OI_GodOfWar2(GSTexture* rt, GSTexture* ds, GSTextureCache::So
 	uint32 FBP = m_context->FRAME.Block();
 	uint32 FBW = m_context->FRAME.FBW;
 	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
 
-	if((FBP == 0x00f00 || FBP == 0x00100 || FBP == 0x01280) && FPSM == PSM_PSMZ24) // ntsc 0xf00, pal 0x100, ntsc "HD" 0x1280
+	if (TME && FBP == 0x0100 && FPSM == PSM_PSMCT32 && (TZTST == 3 && FBMSK == 0xFF000000) && (TBP & 0x03000) == 0x03000 && TPSM == PSM_PSMT8)
+	{
+		m_context->TEST.ZTST = 1;
+	}
+
+	if ((FBP == 0x00f00 || FBP == 0x00100 || FBP == 0x01280) && FPSM == PSM_PSMZ24) // ntsc 0xf00, pal 0x100, ntsc "HD" 0x1280
 	{
 		// z buffer clear
 
@@ -575,7 +1584,7 @@ bool GSRendererHW::OI_GodOfWar2(GSTexture* rt, GSTexture* ds, GSTextureCache::So
 		TEX0.TBW = FBW;
 		TEX0.PSM = FPSM;
 
-		if(GSTextureCache::Target* ds = m_tc->LookupTarget(TEX0, m_width, m_height, GSTextureCache::DepthStencil, true))
+		if (GSTextureCache::Target* ds = m_tc->LookupTarget(TEX0, m_width, m_height, GSTextureCache::DepthStencil, true))
 		{
 			m_dev->ClearDepth(ds->m_texture, 0);
 		}
@@ -859,6 +1868,127 @@ bool GSRendererHW::OI_SMTNocturne(GSTexture* rt, GSTexture* ds, GSTextureCache::
 		return false;
 	}
 
+	return true;
+}
+
+bool GSRendererHW::OI_PoisonPink(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (TME && (FBP == 0 || FBP == 0x1400) && (TBP >= 0x3380 /*|| TBP == 0x3740 || TBP == 0x35c0 ||	TBP == 0x3800 || TBP == 0x3a40*/) && FBMSK == 4278190080 && m_vertex.head != 2 && m_vertex.tail != 4 && m_vertex.next != 4 && TZTST == 2 && TPSM == PSM_PSMT8 && m_context->TEST.ATE && m_vt.m_eq.z)
+	{
+		m_context->TEST.ZTST = 0;
+	}
+
+	return true;
+}
+
+bool GSRendererHW::OI_Simple2000Vol15(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (!TME && FBP == 0x1180 && TPSM == PSM_PSMT8)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+	if (!TME && (FBP == 0x0 || FBP == 0x1180) && FPSM == PSM_PSMCT24 && FBMSK == 0)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+	return true;
+}
+
+bool GSRendererHW::OI_Mercenaries2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (!TME && FBP == 0x0 && FPSM == PSM_PSMCT32 && TZTST == 1 && (m_vt.m_eq.z && m_vt.m_min.p.z == 0) && m_context->TEST.ATE)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+	
+	return true;
+}
+
+bool GSRendererHW::OI_Simple2000Vol55(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (TME && FBP == 0x1180 && FPSM == PSM_PSMCT24 && TZTST==1)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+
+	return true;
+}
+
+bool GSRendererHW::OI_Simple2000Vol30(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (TME && FBP == 0x1180 && TPSM == PSM_PSMT8 && m_context->TEST.ATE && TZTST==2)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
+	return true;
+}
+
+bool GSRendererHW::OI_FD18(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	uint32 FBP = m_context->FRAME.Block();
+	uint32 FBW = m_context->FRAME.FBW;
+	uint32 FPSM = m_context->FRAME.PSM;
+	uint32 TBP = m_context->TEX0.TBP0;
+	uint32 FBMSK = m_context->FRAME.FBMSK;
+	uint32 TPSM = m_context->TEX0.PSM;
+	uint32 TZTST = m_context->TEST.ZTST;
+	uint32 ZBP = m_context->ZBUF.Block();
+	bool TME = PRIM->TME;
+
+	if (TME && FBP == 0x0a00 && FPSM == PSM_PSMCT32 && TPSM == PSM_PSMT4)
+	{
+		m_dev->ClearDepth(ds, 0);
+	}
 	return true;
 }
 

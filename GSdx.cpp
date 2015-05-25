@@ -41,7 +41,28 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	return TRUE;
 }
 
+bool GSdxApp::LoadResource(int id, vector<unsigned char>& buff, const char* type)
+{
+	buff.clear();
+	HRSRC hRsrc = FindResource((HMODULE)s_hModule, MAKEINTRESOURCE(id), type != NULL ? type : RT_RCDATA);
+	if(!hRsrc) return false;
+	HGLOBAL hGlobal = ::LoadResource((HMODULE)s_hModule, hRsrc);
+	if(!hGlobal) return false;
+	DWORD size = SizeofResource((HMODULE)s_hModule, hRsrc);
+	if(!size) return false;
+	buff.resize(size);
+	memcpy(buff.data(), LockResource(hGlobal), size);
+	return true;
+}
+
 #else
+
+bool GSdxApp::LoadResource(int id, vector<unsigned char>& buff, const char* type)
+{
+	buff.clear();
+	printf("LoadResource not implemented\n");
+	return false;
+}
 
 size_t GSdxApp::GetPrivateProfileString(const char* lpAppName, const char* lpKeyName, const char* lpDefault, char* lpReturnedString, size_t nSize, const char* lpFileName)
 {
@@ -108,20 +129,18 @@ GSdxApp::GSdxApp()
 
 	m_gs_renderers.push_back(GSSetting(0, "Direct3D9", "Hardware"));
 	m_gs_renderers.push_back(GSSetting(1, "Direct3D9", "Software"));
+	m_gs_renderers.push_back(GSSetting(14, "Direct3D9", "OpenCL"));
 	m_gs_renderers.push_back(GSSetting(2, "Direct3D9", "Null"));
-	m_gs_renderers.push_back(GSSetting(3, "Direct3D%d    ", "Hardware"));
-	m_gs_renderers.push_back(GSSetting(4, "Direct3D%d    ", "Software"));
-	m_gs_renderers.push_back(GSSetting(5, "Direct3D%d    ", "Null"));
-#ifdef _LINUX
-	// note: SDL was removed. We keep those bits for compatibility of the renderer
-	// position in the linux dialog.
-	m_gs_renderers.push_back(GSSetting(7, "SDL 1.3", "Software"));
-	m_gs_renderers.push_back(GSSetting(8, "SDL 1.3", "Null"));
-#endif
+	m_gs_renderers.push_back(GSSetting(3, "Direct3D", "Hardware"));
+	m_gs_renderers.push_back(GSSetting(4, "Direct3D", "Software"));
+	m_gs_renderers.push_back(GSSetting(15, "Direct3D", "OpenCL"));
+	m_gs_renderers.push_back(GSSetting(5, "Direct3D", "Null"));
 	m_gs_renderers.push_back(GSSetting(10, "Null", "Software"));
+	m_gs_renderers.push_back(GSSetting(16, "Null", "OpenCL"));
 	m_gs_renderers.push_back(GSSetting(11, "Null", "Null"));
 	m_gs_renderers.push_back(GSSetting(12, "OpenGL", "Hardware"));
 	m_gs_renderers.push_back(GSSetting(13, "OpenGL", "Software"));
+	m_gs_renderers.push_back(GSSetting(17, "OpenGL", "OpenCL"));
 
 	m_gs_interlace.push_back(GSSetting(0, "None", ""));
 	m_gs_interlace.push_back(GSSetting(1, "Weave tff", "saw-tooth"));
@@ -143,11 +162,79 @@ GSdxApp::GSdxApp()
 	m_gs_upscale_multiplier.push_back(GSSetting(5, "5x Native", ""));
 	m_gs_upscale_multiplier.push_back(GSSetting(6, "6x Native", ""));
 
-	m_gs_max_anisotropy.push_back(GSSetting(1, "1x", ""));
+	m_gs_HDmode.push_back(GSSetting(1, "Disable", ""));
+	m_gs_HDmode.push_back(GSSetting(2, "mode 1", ""));
+	m_gs_HDmode.push_back(GSSetting(3, "mode 1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(4, "mode 1-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(5, "mode 1-2", ""));
+	m_gs_HDmode.push_back(GSSetting(6, "mode 1-3", ""));
+	m_gs_HDmode.push_back(GSSetting(7, "mode 2", ""));
+	m_gs_HDmode.push_back(GSSetting(8, "mode 2-1", ""));
+	m_gs_HDmode.push_back(GSSetting(9, "mode 2-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(10, "mode 2-2", ""));
+	m_gs_HDmode.push_back(GSSetting(11, "mode 2-3", ""));
+	m_gs_HDmode.push_back(GSSetting(12, "mode 3", ""));
+	m_gs_HDmode.push_back(GSSetting(13, "mode 3-1", ""));
+	m_gs_HDmode.push_back(GSSetting(14, "mode 3-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(15, "mode 3-2", ""));
+	m_gs_HDmode.push_back(GSSetting(16, "mode 3-3", ""));
+	m_gs_HDmode.push_back(GSSetting(17, "mode 4", ""));
+	m_gs_HDmode.push_back(GSSetting(18, "mode 4-1", ""));
+	m_gs_HDmode.push_back(GSSetting(19, "mode 4-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(20, "mode 4-2", ""));
+	m_gs_HDmode.push_back(GSSetting(21, "mode 4-3", ""));
+	m_gs_HDmode.push_back(GSSetting(22, "mode 5", ""));
+	m_gs_HDmode.push_back(GSSetting(23, "mode 5-1", ""));
+	m_gs_HDmode.push_back(GSSetting(24, "mode 5-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(25, "mode 5-1-2", ""));
+	m_gs_HDmode.push_back(GSSetting(26, "mode 5-2", ""));
+	m_gs_HDmode.push_back(GSSetting(27, "mode 5-3", ""));
+	m_gs_HDmode.push_back(GSSetting(28, "mode 6", ""));
+	m_gs_HDmode.push_back(GSSetting(29, "mode 6-1", ""));
+	m_gs_HDmode.push_back(GSSetting(30, "mode 6-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(31, "mode 6-2", ""));
+	m_gs_HDmode.push_back(GSSetting(32, "mode 6-2-1", ""));
+	m_gs_HDmode.push_back(GSSetting(33, "mode 6-3", ""));
+	m_gs_HDmode.push_back(GSSetting(34, "mode 7", ""));
+	m_gs_HDmode.push_back(GSSetting(35, "mode 7-1", ""));
+	m_gs_HDmode.push_back(GSSetting(36, "mode 7-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(37, "mode 7-2", ""));
+	m_gs_HDmode.push_back(GSSetting(38, "mode 7-3", ""));
+	m_gs_HDmode.push_back(GSSetting(39, "mode 8", ""));
+	m_gs_HDmode.push_back(GSSetting(40, "mode 8-1", ""));
+	m_gs_HDmode.push_back(GSSetting(41, "mode 8-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(42, "mode 8-2", ""));
+	m_gs_HDmode.push_back(GSSetting(43, "mode 8-3", ""));
+	m_gs_HDmode.push_back(GSSetting(44, "mode 9", ""));
+	m_gs_HDmode.push_back(GSSetting(45, "mode 9-1", ""));
+	m_gs_HDmode.push_back(GSSetting(46, "mode 9-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(47, "mode 9-2", ""));
+	m_gs_HDmode.push_back(GSSetting(48, "mode 9-3", ""));
+	m_gs_HDmode.push_back(GSSetting(49, "mode 10", ""));
+	m_gs_HDmode.push_back(GSSetting(50, "mode 10-1", ""));
+	m_gs_HDmode.push_back(GSSetting(51, "mode 10-1-1", ""));
+	m_gs_HDmode.push_back(GSSetting(52, "mode 10-1-2", ""));
+	m_gs_HDmode.push_back(GSSetting(53, "mode 10-2", ""));
+	m_gs_HDmode.push_back(GSSetting(54, "mode 10-3", ""));
+	m_gs_HDmode.push_back(GSSetting(57, "mode 10-4", ""));
+
+	m_gs_max_anisotropy.push_back(GSSetting(1, "1x", "Off"));
 	m_gs_max_anisotropy.push_back(GSSetting(2, "2x", ""));
 	m_gs_max_anisotropy.push_back(GSSetting(4, "4x", ""));
 	m_gs_max_anisotropy.push_back(GSSetting(8, "8x", ""));
 	m_gs_max_anisotropy.push_back(GSSetting(16, "16x", ""));
+
+	m_gs_filter.push_back(GSSetting(0, "Nearest", ""));
+	m_gs_filter.push_back(GSSetting(1, "Bilinear", "Forced"));
+	m_gs_filter.push_back(GSSetting(2, "Bilinear", "PS2"));
+
+	m_gs_gl_ext.push_back(GSSetting(-1, "Auto", ""));
+	m_gs_gl_ext.push_back(GSSetting(0,  "Force-Disabled", ""));
+	m_gs_gl_ext.push_back(GSSetting(1,  "Force-Enabled", ""));
+
+	m_gs_hack.push_back(GSSetting(0,  "Off", ""));
+	m_gs_hack.push_back(GSSetting(1,  "Halfly On", ""));
+	m_gs_hack.push_back(GSSetting(2,  "Fully On", ""));
 
 	m_gpu_renderers.push_back(GSSetting(0, "Direct3D9 (Software)", ""));
 	m_gpu_renderers.push_back(GSSetting(1, "Direct3D11 (Software)", ""));
@@ -175,7 +262,7 @@ GSdxApp::GSdxApp()
 	m_gpu_scale.push_back(GSSetting(2 | (2 << 2), "H x 4 - V x 4", ""));
 }
 
-#ifdef _LINUX
+#ifdef __linux__
 void GSdxApp::ReloadConfig()
 {
 	if (m_configuration_map.empty()) return;

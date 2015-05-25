@@ -30,7 +30,8 @@ class GSRendererDX : public GSRendererHW
 	int m_SkipIso_primclass;
 	int m_SkipIso_FBMSK;
 	int m_SkipIso_PSM;
-	
+	int m_NoAlphaTest;
+
 	bool m_logz;
 	bool m_fba;
 

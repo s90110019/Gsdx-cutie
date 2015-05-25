@@ -27,6 +27,7 @@
 #include "GSDeviceNull.h"
 #include "GSDeviceOGL.h"
 #include "GSRendererOGL.h"
+#include "GSRendererCL.h"
 
 #ifdef _WINDOWS
 
@@ -99,7 +100,7 @@ EXPORT_C_(void) PS2EsetEmuVersion(const char* emuId, uint32 version)
 
 EXPORT_C_(uint32) PS2EgetCpuPlatform()
 {
-#if _M_AMD64
+#ifdef _M_AMD64
 
 	return PS2E_X86_64;
 
@@ -148,6 +149,8 @@ EXPORT_C_(int) GSinit()
 
 EXPORT_C GSshutdown()
 {
+	gsopen_done = false;
+
 	delete s_gs;
 
 	s_gs = NULL;
@@ -164,12 +167,12 @@ EXPORT_C GSshutdown()
 	}
 
 #endif
-
-	gsopen_done = false;
 }
 
 EXPORT_C GSclose()
 {
+	gsopen_done = false;
+
 	if(s_gs == NULL) return;
 
 	s_gs->ResetDevice();
@@ -184,12 +187,17 @@ EXPORT_C GSclose()
 	{
 		s_gs->m_wnd->Detach();
 	}
-
-	gsopen_done = false;
 }
 
 static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 {
+	// I really don't know the impact on windows! It could work
+#ifdef __linux__
+	if (theApp.GetConfig("enable_nvidia_multi_thread", 1)) {
+		setenv("__GL_THREADED_OPTIMIZATIONS", "1", 0);
+	}
+#endif
+
 	GSDevice* dev = NULL;
 
 	if(renderer == -1)
@@ -203,6 +211,7 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 	}
 
 	GSWnd* wnd[2];
+
 	try
 	{
 		if(s_renderer != renderer)
@@ -216,85 +225,85 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 			s_gs = NULL;
 		}
 
-		if(renderer == 15)
+		switch(renderer)
 		{
-			#ifdef _WINDOWS
-	
-			dev = new GSDevice11();
-
-			if(dev == NULL)
-			{
-				return -1;
-			}
-
-			delete s_gs;
-
-			s_gs = new GSRendererCS();
-
-			s_renderer = renderer;
-
-			#endif
+		default:
+#ifdef _WINDOWS
+		case 0: case 1: case 2: case 14:
+			dev = new GSDevice9(); 
+			break;
+		case 3: case 4: case 5: case 15:
+			dev = new GSDevice11(); 
+			break;
+#endif
+		case 9: case 10: case 11: case 16:
+			dev = new GSDeviceNull(); 
+			break;
+		case 12: case 13: case 17:
+			dev = new GSDeviceOGL(); 
+			break;
 		}
-		else
+
+		if(dev == NULL)
 		{
-			switch(renderer / 3)
+			return -1;
+		}
+
+		if(s_gs == NULL)
+		{
+			switch(renderer)
 			{
 			default:
-				#ifdef _WINDOWS
-				case 0: dev = new GSDevice9(); break;
-				case 1: dev = new GSDevice11(); break;
-				#endif
-				case 3: dev = new GSDeviceNull(); break;
-				case 4: dev = new GSDeviceOGL(); break;
-			}
-
-			if(dev == NULL)
-			{
-				return -1;
-			}
-
-			if(s_gs == NULL)
-			{
-				switch(renderer % 3)
-				{
-					default:
-					case 0:
-						switch(renderer) 
-						{ 
-							default:
 #ifdef _WINDOWS
-							case 0: s_gs = (GSRenderer*)new GSRendererDX9(); break;
-							case 3: s_gs = (GSRenderer*)new GSRendererDX11(); break;
+			case 0:
+				s_gs = (GSRenderer*)new GSRendererDX9();
+				break;
+			case 3: 
+				s_gs = (GSRenderer*)new GSRendererDX11(); 
+				break;
 #endif
-							case 12: s_gs = (GSRenderer*)new GSRendererOGL(); break;
-						}
-						break;
-					case 1:
-						s_gs = new GSRendererSW(threads);
-						break;
-					case 2:
-						s_gs = new GSRendererNull();
-						break;
-				}
-
-				s_renderer = renderer;
+			case 12: 
+				s_gs = (GSRenderer*)new GSRendererOGL(); 
+				break;
+			case 1: case 4: case 10: case 13:
+				s_gs = new GSRendererSW(threads);
+				break;
+			case 2: case 5: case 11:
+				s_gs = new GSRendererNull();
+				break;
+			case 14: case 15: case 16: case 17:
+#ifdef ENABLE_OPENCL
+				s_gs = new GSRendererCL();
+#else
+				printf("GSdx error: opencl is disabled\n");
+#endif
+				break;
 			}
+			if (s_gs == NULL)
+				return -1;
+
+			s_renderer = renderer;
 		}
 
 		if (s_gs->m_wnd == NULL)
 		{
 #ifdef _WINDOWS
-			if (renderer / 3 == 4)
+			switch(renderer)
+			{
+			case 12: case 13: case 17:
 				s_gs->m_wnd = new GSWndWGL();
-			else
+				break;
+			default:
 				s_gs->m_wnd = new GSWndDX();
-#else
-#ifdef ENABLE_GLES
-			wnd[0] = NULL;
+				break;
+			}
 #else
 			wnd[0] = new GSWndOGL();
-#endif
+#ifdef EGL_SUPPORTED
 			wnd[1] = new GSWndEGL();
+#else
+			wnd[1] = NULL;
+#endif
 #endif
 		}
 	}
@@ -321,7 +330,7 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 		int w = theApp.GetConfig("ModeWidth", 0);
 		int h = theApp.GetConfig("ModeHeight", 0);
 
-#ifdef _LINUX
+#ifdef __linux__
 		for(uint32 i = 0; i < 2; i++) {
 			try
 			{
@@ -364,11 +373,11 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 	{
 		s_gs->SetMultithreaded(true);
 
-#ifdef _LINUX
+#ifdef __linux__
 		if (s_gs->m_wnd) {
 			// A window was already attached to s_gs so we also
 			// need to restore the window state (Attach)
-			s_gs->m_wnd->Attach((void*)((uint32*)(dsp)+1), false);
+			s_gs->m_wnd->Attach((void*)((uptr*)(dsp)+1), false);
 		} else {
 			// No window found, try to attach a GLX win and retry 
 			// with EGL win if failed.
@@ -377,7 +386,7 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 				{
 					if (wnd[i] == NULL) continue;
 
-					wnd[i]->Attach((void*)((uint32*)(dsp)+1), false);
+					wnd[i]->Attach((void*)((uptr*)(dsp)+1), false);
 					s_gs->m_wnd = wnd[i];
 
 					if (i == 0) delete wnd[1];
@@ -417,7 +426,7 @@ static int _GSopen(void** dsp, char* title, int renderer, int threads = -1)
 
 EXPORT_C_(int) GSopen2(void** dsp, uint32 flags)
 {
-#ifdef _LINUX
+#ifdef __linux__
 	// Use ogl renderer as default otherwise it crash at startup
 	// GSRenderOGL only GSDeviceOGL (not GSDeviceNULL)
 	int renderer = theApp.GetConfig("renderer", 12);
@@ -442,7 +451,7 @@ EXPORT_C_(int) GSopen2(void** dsp, uint32 flags)
 		}
 
 #endif
-#ifdef _LINUX
+#ifdef __linux__
 		switch(renderer) {
 			case 13: renderer = 12; break; // OGL: SW to HW
 			case 12: renderer = 13; break; // OGL: HW to SW
@@ -542,8 +551,21 @@ EXPORT_C GSwriteCSR(uint32 csr)
 	}
 }
 
+EXPORT_C GSinitReadFIFO(uint8* mem)
+{
+	GL_PERF("Init Read FIFO1");
+	try
+	{
+		s_gs->InitReadFIFO(mem, 1);
+	}
+	catch (GSDXRecoverableError)
+	{
+	}
+}
+
 EXPORT_C GSreadFIFO(uint8* mem)
 {
+	GL_PERF("Read FIFO1");
 	try
 	{
 		s_gs->ReadFIFO(mem, 1);
@@ -553,8 +575,21 @@ EXPORT_C GSreadFIFO(uint8* mem)
 	}
 }
 
+EXPORT_C GSinitReadFIFO2(uint8* mem, uint32 size)
+{
+	GL_PERF("Init Read FIFO2");
+	try
+	{
+		s_gs->InitReadFIFO(mem, size);
+	}
+	catch (GSDXRecoverableError)
+	{
+	}
+}
+
 EXPORT_C GSreadFIFO2(uint8* mem, uint32 size)
 {
+	GL_PERF("Read FIFO2");
 	try
 	{
 		s_gs->ReadFIFO(mem, size);
@@ -659,7 +694,10 @@ EXPORT_C GSkeyEvent(GSKeyEventData* e)
 {
 	try
 	{
-		s_gs->KeyEvent(e);
+		if(gsopen_done)
+		{
+			s_gs->KeyEvent(e);
+		}
 	}
 	catch (GSDXRecoverableError)
 	{
@@ -785,6 +823,12 @@ EXPORT_C_(int) GSsetupRecording(int start, void* data)
 		printf("GSdx: no s_gs for recording\n");
 		return 0;
 	}
+#ifdef __linux__
+	if (theApp.GetConfig("capture_enabled", 0)) {
+		printf("GSdx: Recording is disabled\n");
+		return 0;
+	}
+#endif
 
 	if(start & 1)
 	{
@@ -826,9 +870,13 @@ EXPORT_C GSgetTitleInfo2(char* dest, size_t length)
 
 	if(s_gs->m_GStitleInfoBuffer[0])
 	{
+#ifdef _CX11_
+		std::lock_guard<std::mutex> lock(s_gs->m_pGSsetTitle_Crit);
+#else
 		GSAutoLock lock(&s_gs->m_pGSsetTitle_Crit);
+#endif
 
-		s = format("GSdx-Cutie | %s", s_gs->m_GStitleInfoBuffer);
+		s = format("GSdx-Cutie| %s", s_gs->m_GStitleInfoBuffer);
 
 		if(s.size() > length - 1)
 		{
@@ -1195,15 +1243,11 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 {
 	::SetPriorityClass(::GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
-	FILE* file = fopen("c:\\temp1\\log.txt", "a");
-
-	fprintf(file, "-------------------------\n\n");
+	Console console("GSdx", true);
 
 	if(1)
 	{
-		GSLocalMemory * pMem = new GSLocalMemory();
-		GSLocalMemory& mem(*pMem);
-		
+		GSLocalMemory* mem = new GSLocalMemory();		
 
 		static struct {int psm; const char* name;} s_format[] =
 		{
@@ -1235,7 +1279,7 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 			int w = 1 << tbw;
 			int h = 1 << tbw;
 
-			fprintf(file, "%d x %d\n\n", w, h);
+			printf("%d x %d\n\n", w, h);
 
 			for(size_t i = 0; i < countof(s_format); i++)
 			{
@@ -1285,7 +1329,7 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 
 				clock_t start, end;
 
-				_ftprintf(file, _T("[%4s] "), s_format[i].name);
+				printf("[%4s] ", s_format[i].name);
 
 				start = clock();
 
@@ -1294,12 +1338,12 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 					int x = 0;
 					int y = 0;
 
-					(mem.*wi)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
+					(mem->*wi)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
 				}
 
 				end = clock();
 
-				fprintf(file, "%6d %6d | ", (int)((float)trlen * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
+				printf("%6d %6d | ", (int)((float)trlen * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
 
 				start = clock();
 
@@ -1308,25 +1352,25 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 					int x = 0;
 					int y = 0;
 
-					(mem.*ri)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
+					(mem->*ri)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
 				}
 
 				end = clock();
 
-				fprintf(file, "%6d %6d | ", (int)((float)trlen * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
+				printf("%6d %6d | ", (int)((float)trlen * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
 
-				const GSOffset* o = mem.GetOffset(TEX0.TBP0, TEX0.TBW, TEX0.PSM);
+				const GSOffset* off = mem->GetOffset(TEX0.TBP0, TEX0.TBW, TEX0.PSM);
 
 				start = clock();
 
 				for(int j = 0; j < n; j++)
 				{
-					(mem.*rtx)(o, r, ptr, w * 4, TEXA);
+					(mem->*rtx)(off, r, ptr, w * 4, TEXA);
 				}
 
 				end = clock();
 
-				fprintf(file, "%6d %6d ", (int)((float)len * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
+				printf("%6d %6d ", (int)((float)len * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
 
 				if(psm.pal > 0)
 				{
@@ -1334,32 +1378,30 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 
 					for(int j = 0; j < n; j++)
 					{
-						(mem.*rtxP)(o, r, ptr, w, TEXA);
+						(mem->*rtxP)(off, r, ptr, w, TEXA);
 					}
 
 					end = clock();
 
-					fprintf(file, "| %6d %6d ", (int)((float)len * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
+					printf("| %6d %6d ", (int)((float)len * n / (end - start) / 1000), (int)((float)(w * h) * n / (end - start) / 1000));
 				}
 
-				fprintf(file, "\n");
-
-				fflush(file);
+				printf("\n");
 			}
 
-			fprintf(file, "\n");
+			printf("\n");
 		}
 
 		_aligned_free(ptr);
-		delete pMem;
+
+		delete mem;
 	}
 
 	//
 
 	if(0)
 	{
-		GSLocalMemory * pMem2 = new GSLocalMemory();
-		GSLocalMemory& mem2(*pMem2);
+		GSLocalMemory* mem = new GSLocalMemory();
 
 		uint8* ptr = (uint8*)_aligned_malloc(1024 * 1024 * 4, 32);
 
@@ -1390,22 +1432,23 @@ EXPORT_C GSBenchmark(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow
 		int x = 0;
 		int y = 0;
 
-		(mem2.*wi)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
-		delete pMem2;
+		(mem->*wi)(x, y, ptr, trlen, BITBLTBUF, TRXPOS, TRXREG);
+
+		delete mem;
 	}
 
 	//
 
-	fclose(file);
 	PostQuitMessage(0);
 }
 
 #endif
 
-#ifdef _LINUX
+#ifdef __linux__
 
 #include <sys/time.h>
 #include <sys/timeb.h>	// ftime(), struct timeb
+#include "GSLzma.h"
 
 inline unsigned long timeGetTime()
 {
@@ -1420,25 +1463,6 @@ EXPORT_C GSReplay(char* lpszCmdLine, int renderer)
 {
 	GLLoader::in_replayer = true;
 
-// lpszCmdLine:
-//   First parameter is the renderer.
-//   Second parameter is the gs file to load and run.
-
-//EXPORT_C GSReplay(HWND hwnd, HINSTANCE hinst, LPSTR lpszCmdLine, int nCmdShow)
-#if 0
-	int renderer = -1;
-
-	{
-		char* start = lpszCmdLine;
-		char* end = NULL;
-		long n = strtol(lpszCmdLine, &end, 10);
-		if(end > start) {renderer = n; lpszCmdLine = end;}
-	}
-
-	while(*lpszCmdLine == ' ') lpszCmdLine++;
-
-	::SetPriorityClass(::GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-#endif
 	// Allow to easyly switch between SW/HW renderer
 	renderer = theApp.GetConfig("renderer", 12);
 	if (renderer != 12 && renderer != 13)
@@ -1447,98 +1471,102 @@ EXPORT_C GSReplay(char* lpszCmdLine, int renderer)
 		return;
 	}
 
+	struct Packet {uint8 type, param; uint32 size, addr; vector<uint8> buff;};
+
+	list<Packet*> packets;
+	vector<uint8> buff;
 	vector<float> stats;
 	stats.clear();
+	uint8 regs[0x2000];
 
-	if(FILE* fp = fopen(lpszCmdLine, "rb"))
+	GSinit();
+
+	GSsetBaseMem(regs);
+
+	s_vsync = !!theApp.GetConfig("vsync", 0);
+
+	void* hWnd = NULL;
+
+	int err = _GSopen((void**)&hWnd, "", renderer);
+	if (err != 0) {
+		fprintf(stderr, "Error failed to GSopen\n");
+		return;
+	}
+	if (s_gs->m_wnd == NULL) return;
+
 	{
-		//Console console("GSdx", true);
-
-		GSinit();
-
-		uint8 regs[0x2000];
-		GSsetBaseMem(regs);
-
-		s_vsync = !!theApp.GetConfig("vsync", 0);
-
-		void* hWnd = NULL;
-
-		int err = _GSopen((void**)&hWnd, "", renderer);
-		if (err != 0) {
-			fprintf(stderr, "Error failed to GSopen\n");
-			return;
-		}
-		if (s_gs->m_wnd == NULL) return;
+		std::string f(lpszCmdLine);
+#ifdef LZMA_SUPPORTED
+		GSDumpFile* file = (f.size() >= 4) && (f.compare(f.size()-3, 3, ".xz") == 0)
+			? (GSDumpFile*) new GSDumpLzma(lpszCmdLine)
+			: (GSDumpFile*) new GSDumpRaw(lpszCmdLine);
+#else
+		GSDumpFile* file = new GSDumpRaw(lpszCmdLine);
+#endif
 
 		uint32 crc;
-		fread(&crc, 4, 1, fp);
+		file->Read(&crc, 4);
 		GSsetGameCRC(crc, 0);
 
 		GSFreezeData fd;
-		fread(&fd.size, 4, 1, fp);
+		file->Read(&fd.size, 4);
 		fd.data = new uint8[fd.size];
-		fread(fd.data, fd.size, 1, fp);
+		file->Read(fd.data, fd.size);
+
 		GSfreeze(FREEZE_LOAD, &fd);
 		delete [] fd.data;
 
-		fread(regs, 0x2000, 1, fp);
+		file->Read(regs, 0x2000);
 
 		GSvsync(1);
 
-		struct Packet {uint8 type, param; uint32 size, addr; vector<uint8> buff;};
 
-		list<Packet*> packets;
-		vector<uint8> buff;
-		int type;
-
-		while((type = fgetc(fp)) != EOF)
+		while(!file->IsEof())
 		{
+			uint8 type;
+			file->Read(&type, 1);
+
 			Packet* p = new Packet();
 
-			p->type = (uint8)type;
+			p->type = type;
 
 			switch(type)
 			{
 			case 0:
-
-				p->param = (uint8)fgetc(fp);
-
-				fread(&p->size, 4, 1, fp);
+				file->Read(&p->param, 1);
+				file->Read(&p->size, 4);
 
 				switch(p->param)
 				{
 				case 0:
 					p->buff.resize(0x4000);
 					p->addr = 0x4000 - p->size;
-					fread(&p->buff[p->addr], p->size, 1, fp);
+					file->Read(&p->buff[p->addr], p->size);
 					break;
 				case 1:
 				case 2:
 				case 3:
 					p->buff.resize(p->size);
-					fread(&p->buff[0], p->size, 1, fp);
+					file->Read(&p->buff[0], p->size);
 					break;
 				}
 
 				break;
 
 			case 1:
-
-				p->param = (uint8)fgetc(fp);
+				file->Read(&p->param, 1);
 
 				break;
 
 			case 2:
-
-				fread(&p->size, 4, 1, fp);
+				file->Read(&p->size, 4);
 
 				break;
 
 			case 3:
-
 				p->buff.resize(0x2000);
 
-				fread(&p->buff[0], 0x2000, 1, fp);
+				file->Read(&p->buff[0], 0x2000);
 
 				break;
 			}
@@ -1546,30 +1574,37 @@ EXPORT_C GSReplay(char* lpszCmdLine, int renderer)
 			packets.push_back(p);
 		}
 
-		sleep(1);
+	}
 
-		//while(IsWindowVisible(hWnd))
-		//FIXME map?
-		int finished = theApp.GetConfig("linux_replay", 1);
-		unsigned long frame_number = 0;
-		while(finished > 0)
+	sleep(1);
+
+	//while(IsWindowVisible(hWnd))
+	//FIXME map?
+	int finished = theApp.GetConfig("linux_replay", 1);
+	if (theApp.GetConfig("dump", 0)) {
+		fprintf(stderr, "Dump is enabled. Replay will be disabled\n");
+		finished = 1;
+	}
+	unsigned long frame_number = 0;
+	unsigned long total_frame_nb = 0;
+	while(finished > 0)
+	{
+		frame_number = 0;
+		unsigned long start = timeGetTime();
+		for(auto i = packets.begin(); i != packets.end(); i++)
 		{
-			frame_number = 0;
-			unsigned long start = timeGetTime();
-			for(auto i = packets.begin(); i != packets.end(); i++)
-			{
-				Packet* p = *i;
+			Packet* p = *i;
 
-				switch(p->type)
-				{
+			switch(p->type)
+			{
 				case 0:
 
 					switch(p->param)
 					{
-					case 0: GSgifTransfer1(&p->buff[0], p->addr); break;
-					case 1: GSgifTransfer2(&p->buff[0], p->size / 16); break;
-					case 2: GSgifTransfer3(&p->buff[0], p->size / 16); break;
-					case 3: GSgifTransfer(&p->buff[0], p->size / 16); break;
+						case 0: GSgifTransfer1(&p->buff[0], p->addr); break;
+						case 1: GSgifTransfer2(&p->buff[0], p->size / 16); break;
+						case 2: GSgifTransfer3(&p->buff[0], p->size / 16); break;
+						case 3: GSgifTransfer(&p->buff[0], p->size / 16); break;
 					}
 
 					break;
@@ -1594,60 +1629,62 @@ EXPORT_C GSReplay(char* lpszCmdLine, int renderer)
 					memcpy(regs, &p->buff[0], 0x2000);
 
 					break;
-				}
 			}
-			unsigned long end = timeGetTime();
-			fprintf(stderr, "The %ld frames of the scene was render on %ldms\n", frame_number, end - start);
-			fprintf(stderr, "A means of %fms by frame\n", (float)(end - start)/(float)frame_number);
-
-			stats.push_back((float)(end - start));
-
-
-			sleep(1);
-			finished--;
 		}
+		unsigned long end = timeGetTime();
+		fprintf(stderr, "The %ld frames of the scene was render on %ldms\n", frame_number, end - start);
+		fprintf(stderr, "A means of %fms by frame\n", (float)(end - start)/(float)frame_number);
 
-		if (theApp.GetConfig("linux_replay", 1) > 1) {
-			// Print some nice stats
-			// Skip first frame (shader compilation populate the result)
-			// it divides by 10 the standard deviation...
-			float n = (float)theApp.GetConfig("linux_replay", 1) - 1.0f;
-			float mean = 0;
-			float sd = 0;
-			for (auto i = stats.begin()+1; i != stats.end(); i++) {
-				mean += *i;
-			}
-			mean = mean/n;
-			for (auto i = stats.begin()+1; i != stats.end(); i++) {
-				sd += pow((*i)-mean, 2);
-			}
-			sd = sqrt(sd/n);
+		stats.push_back((float)(end - start));
 
-			fprintf(stderr, "\n\nMean: %fms\n", mean);
-			fprintf(stderr, "Standard deviation: %fms\n", sd);
-			fprintf(stderr, "Mean by frame: %fms (%ffps)\n", mean/(float)frame_number, 1000.0f*frame_number/mean);
-			fprintf(stderr, "Standard deviatin by frame: %fms\n", sd/(float)frame_number);
-		}
-#ifdef ENABLE_OGL_DEBUG_MEM_BW
-		fprintf(stderr, "memory bandwith. T: %f. V: %f\n", (float)g_texture_upload_byte/(float)frame_number/1024, (float)g_vertex_upload_byte/(float)frame_number/1024);
-#endif
-
-		for(auto i = packets.begin(); i != packets.end(); i++)
-		{
-			delete *i;
-		}
-
-		packets.clear();
 
 		sleep(1);
-
-		GSclose();
-		GSshutdown();
-
-		fclose(fp);
-	} else {
-		fprintf(stderr, "failed to open %s\n", lpszCmdLine);
+		finished--;
+		total_frame_nb += frame_number;
 	}
+
+	if (theApp.GetConfig("linux_replay", 1) > 1) {
+		// Print some nice stats
+		// Skip first frame (shader compilation populate the result)
+		// it divides by 10 the standard deviation...
+		float n = (float)theApp.GetConfig("linux_replay", 1) - 1.0f;
+		float mean = 0;
+		float sd = 0;
+		for (auto i = stats.begin()+1; i != stats.end(); i++) {
+			mean += *i;
+		}
+		mean = mean/n;
+		for (auto i = stats.begin()+1; i != stats.end(); i++) {
+			sd += pow((*i)-mean, 2);
+		}
+		sd = sqrt(sd/n);
+
+		fprintf(stderr, "\n\nMean: %fms\n", mean);
+		fprintf(stderr, "Standard deviation: %fms\n", sd);
+		fprintf(stderr, "Mean by frame: %fms (%ffps)\n", mean/(float)frame_number, 1000.0f*frame_number/mean);
+		fprintf(stderr, "Standard deviatin by frame: %fms\n", sd/(float)frame_number);
+	}
+#ifdef ENABLE_OGL_DEBUG_MEM_BW
+	total_frame_nb *= 1024;
+	fprintf(stderr, "memory bandwith. T: %f KB/f. V: %f KB/f. U: %f KB/f\n",
+			(float)g_real_texture_upload_byte/(float)total_frame_nb,
+			(float)g_vertex_upload_byte/(float)total_frame_nb,
+			(float)g_uniform_upload_byte/(float)total_frame_nb
+		   );
+#endif
+
+	for(auto i = packets.begin(); i != packets.end(); i++)
+	{
+		delete *i;
+	}
+
+	packets.clear();
+
+	sleep(1);
+
+	GSclose();
+	GSshutdown();
 }
 #endif
+
 
