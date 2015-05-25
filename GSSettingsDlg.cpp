@@ -26,11 +26,24 @@
 #include "GSDevice9.h"
 #include "GSDevice11.h"
 #include "resource.h"
+#include "GSSetting.h"
 
 GSSettingsDlg::GSSettingsDlg(bool isOpen2)
 	: GSDialog(isOpen2 ? IDD_CONFIG2 : IDD_CONFIG)
 	, m_IsOpen2(isOpen2)
 {
+#ifdef ENABLE_OPENCL
+	list<OCLDeviceDesc> ocldevs;
+
+	GSUtil::GetDeviceDescs(ocldevs);
+
+	int index = 0;
+
+	for(auto dev : ocldevs)
+	{
+		m_ocl_devs.push_back(GSSetting(index++, dev.name.c_str(), ""));
+	}
+#endif
 }
 
 void GSSettingsDlg::OnInit()
@@ -40,11 +53,15 @@ void GSSettingsDlg::OnInit()
 	m_modes.clear();
 
 	CComPtr<IDirect3D9> d3d9;
+
 	d3d9.Attach(Direct3DCreate9(D3D_SDK_VERSION));
 
 	CComPtr<IDXGIFactory1> dxgi_factory;
-	if (GSUtil::CheckDXGI())
+	
+	if(GSUtil::CheckDXGI())
+	{
 		CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&dxgi_factory);
+	}
 
 	if(!m_IsOpen2)
 	{
@@ -81,51 +98,49 @@ void GSSettingsDlg::OnInit()
 	adapters.push_back(Adapter("Default Hardware Device", "default", GSUtil::CheckDirect3D11Level(NULL, D3D_DRIVER_TYPE_HARDWARE)));
 	adapters.push_back(Adapter("Reference Device", "ref", GSUtil::CheckDirect3D11Level(NULL, D3D_DRIVER_TYPE_REFERENCE)));
 
-	if (dxgi_factory)
+	if(dxgi_factory)
 	{
-		for (int i = 0;; i++)
+		for(int i = 0;; i++)
 		{
 			CComPtr<IDXGIAdapter1> adapter;
-			if (S_OK != dxgi_factory->EnumAdapters1(i, &adapter))
+
+			if(S_OK != dxgi_factory->EnumAdapters1(i, &adapter))
 				break;
+
 			DXGI_ADAPTER_DESC1 desc;
+			
 			HRESULT hr = adapter->GetDesc1(&desc);
-			if (S_OK == hr)
+			
+			if(S_OK == hr)
 			{
 				D3D_FEATURE_LEVEL level = GSUtil::CheckDirect3D11Level(adapter, D3D_DRIVER_TYPE_UNKNOWN);
-// GSDX isn't unicode!?
+				// GSDX isn't unicode!?
 #if 1
-				int size = WideCharToMultiByte(CP_ACP, 0,
-					desc.Description, sizeof(desc.Description),
-					NULL, 0,
-					NULL, NULL);
+				int size = WideCharToMultiByte(CP_ACP, 0, desc.Description, sizeof(desc.Description), NULL, 0, NULL, NULL);
 				char *buf = new char[size];
-				WideCharToMultiByte(CP_ACP, 0,
-					desc.Description, sizeof(desc.Description),
-					buf, size,
-					NULL, NULL);
+				WideCharToMultiByte(CP_ACP, 0, desc.Description, sizeof(desc.Description), buf, size, NULL, NULL);
 				adapters.push_back(Adapter(buf, GSAdapter(desc), level));
-				delete [] buf;
+				delete[] buf;
 #else
 				adapters.push_back(Adapter(desc.Description, GSAdapter(desc), level));
 #endif
 			}
 		}
 	}
-	else if (d3d9)
+	else if(d3d9)
 	{
 		int n = d3d9->GetAdapterCount();
-		for (int i = 0; i < n; i++)
+		for(int i = 0; i < n; i++)
 		{
 			D3DADAPTER_IDENTIFIER9 desc;
-			if (D3D_OK != d3d9->GetAdapterIdentifier(i, 0, &desc))
+
+			if(D3D_OK != d3d9->GetAdapterIdentifier(i, 0, &desc))
 				break;
-// GSDX isn't unicode!?
+
+			// GSDX isn't unicode!?
 #if 0
 			wchar_t buf[sizeof desc.Description * sizeof(WCHAR)];
-			MultiByteToWideChar(CP_ACP /* I have no idea if this is right */, 0,
-				desc.Description, sizeof(desc.Description),
-				buf, sizeof buf / sizeof *buf);
+			MultiByteToWideChar(CP_ACP /* I have no idea if this is right */, 0, desc.Description, sizeof(desc.Description), buf, sizeof buf / sizeof *buf);
 			adapters.push_back(Adapter(buf, GSAdapter(desc), (D3D_FEATURE_LEVEL)0));
 #else
 			adapters.push_back(Adapter(desc.Description, GSAdapter(desc), (D3D_FEATURE_LEVEL)0));
@@ -135,28 +150,50 @@ void GSSettingsDlg::OnInit()
 
 	std::string adapter_setting = theApp.GetConfig("Adapter", "default");
 	vector<GSSetting> adapter_settings;
-	unsigned adapter_sel = 0;
+	unsigned int adapter_sel = 0;
 
-	for (unsigned i = 0; i < adapters.size(); i++)
+	for(unsigned int i = 0; i < adapters.size(); i++)
 	{
-		if (adapters[i].id == adapter_setting)
+		if(adapters[i].id == adapter_setting)
+		{
 			adapter_sel = i;
+		}
+
 		adapter_settings.push_back(GSSetting(i, adapters[i].name.c_str(), ""));
 	}
 
+	std::string ocldev = theApp.GetConfig("ocldev", "");
+
+	unsigned int ocl_sel = 0;
+
+	for(unsigned int i = 0; i < m_ocl_devs.size(); i++)
+	{
+		if(ocldev == m_ocl_devs[i].name)
+		{
+			ocl_sel = i;
+
+			break;
+		}
+	}
+
 	ComboBoxInit(IDC_ADAPTER, adapter_settings, adapter_sel);
+	ComboBoxInit(IDC_OPENCL_DEVICE, m_ocl_devs, ocl_sel);
+
 	UpdateRenderers();
+	
 	ComboBoxInit(IDC_INTERLACE, theApp.m_gs_interlace, theApp.GetConfig("Interlace", 7)); // 7 = "auto", detects interlace based on SMODE2 register
 	ComboBoxInit(IDC_ASPECTRATIO, theApp.m_gs_aspectratio, theApp.GetConfig("AspectRatio", 1));
 	ComboBoxInit(IDC_UPSCALE_MULTIPLIER, theApp.m_gs_upscale_multiplier, theApp.GetConfig("upscale_multiplier", 1));
+	ComboBoxInit(IDC_HDMODE, theApp.m_gs_HDmode, theApp.GetConfig("HDmode", 1));
 	ComboBoxInit(IDC_AFCOMBO, theApp.m_gs_max_anisotropy, theApp.GetConfig("MaxAnisotropy", 0));
 
 	CheckDlgButton(m_hWnd, IDC_WINDOWED, theApp.GetConfig("windowed", 1));
-	CheckDlgButton(m_hWnd, IDC_FILTER, theApp.GetConfig("filter", 2));
+	CheckDlgButton(m_hWnd, IDC_FILTER, theApp.GetConfig("filter", 1));
 	CheckDlgButton(m_hWnd, IDC_PALTEX, theApp.GetConfig("paltex", 0));
 	CheckDlgButton(m_hWnd, IDC_LOGZ, theApp.GetConfig("logz", 1));
 	CheckDlgButton(m_hWnd, IDC_FBA, theApp.GetConfig("fba", 1));
 	CheckDlgButton(m_hWnd, IDC_AA1, theApp.GetConfig("aa1", 0));
+	CheckDlgButton(m_hWnd, IDC_CUSTOMHDREV, theApp.GetConfig("customhdrev", 0));
 	CheckDlgButton(m_hWnd, IDC_NATIVERES, theApp.GetConfig("nativeres", 1));
 	CheckDlgButton(m_hWnd, IDC_ANISOTROPIC, theApp.GetConfig("AnisotropicFiltering", 0));
 
@@ -169,8 +206,11 @@ void GSSettingsDlg::OnInit()
 	// External FX shader
 	CheckDlgButton(m_hWnd, IDC_SHADER_FX, theApp.GetConfig("shaderfx", 0));
 	
+	// Custom Shader
+	CheckDlgButton(m_hWnd, IDC_CUSTOMSHADER, theApp.GetConfig("customshader", 0));
+
 	// Hacks
-	CheckDlgButton(m_hWnd, IDC_HACKS_ENABLED, theApp.GetConfig("UserHacks", 0));
+	CheckDlgButton(m_hWnd, IDC_HACKS_ENABLED, theApp.GetConfig("UserHacks", 1));
 	
 
 	SendMessage(GetDlgItem(m_hWnd, IDC_RESX), UDM_SETRANGE, 0, MAKELPARAM(8192, 256));
@@ -179,6 +219,11 @@ void GSSettingsDlg::OnInit()
 	SendMessage(GetDlgItem(m_hWnd, IDC_RESY), UDM_SETRANGE, 0, MAKELPARAM(8192, 256));
 	SendMessage(GetDlgItem(m_hWnd, IDC_RESY), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("resy", 1024), 0));
 
+	SendMessage(GetDlgItem(m_hWnd, IDC_SCALEX), UDM_SETRANGE, 0, MAKELPARAM(4096, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SCALEX), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("scalex", 1024), 0));
+
+	SendMessage(GetDlgItem(m_hWnd, IDC_SCALEY), UDM_SETRANGE, 0, MAKELPARAM(4096, 0));
+	SendMessage(GetDlgItem(m_hWnd, IDC_SCALEY), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("scaley", 512), 0));
 
 	SendMessage(GetDlgItem(m_hWnd, IDC_SWTHREADS), UDM_SETRANGE, 0, MAKELPARAM(16, 0));
 	SendMessage(GetDlgItem(m_hWnd, IDC_SWTHREADS), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("extrathreads", 0), 0));
@@ -223,6 +268,11 @@ bool GSSettingsDlg::OnCommand(HWND hWnd, UINT id, UINT code)
 			if (code == CBN_SELCHANGE)
 				UpdateControls();
 			break;
+		case IDC_HDMODE:
+			if (code == CBN_SELCHANGE)
+				UpdateControls();
+			break;
+		case IDC_CUSTOMHDREV:
 		case IDC_NATIVERES:
 		case IDC_SHADEBOOST:
 		case IDC_FILTER:
@@ -252,6 +302,13 @@ bool GSSettingsDlg::OnCommand(HWND hWnd, UINT id, UINT code)
 			if(ComboBoxGetSelData(IDC_ADAPTER, data))
 			{
 				theApp.SetConfig("Adapter", adapters[(int)data].id.c_str());
+			}
+
+			if(ComboBoxGetSelData(IDC_OPENCL_DEVICE, data))
+			{
+				if ((int)data < m_ocl_devs.size()) {
+					theApp.SetConfig("ocldev", m_ocl_devs[(int)data].name.c_str());
+				}
 			}
 
 			if(!m_IsOpen2 && ComboBoxGetSelData(IDC_RESOLUTION, data))
@@ -287,7 +344,16 @@ bool GSSettingsDlg::OnCommand(HWND hWnd, UINT id, UINT code)
 				theApp.SetConfig("upscale_multiplier", 1);
 			}
 
-			if (ComboBoxGetSelData(IDC_AFCOMBO, data))
+			if (ComboBoxGetSelData(IDC_HDMODE, data))
+			{
+				theApp.SetConfig("HDmode", (int)data);
+			}
+			else
+			{
+				theApp.SetConfig("HDmode", 1);
+			}
+
+			if(ComboBoxGetSelData(IDC_AFCOMBO, data))
 			{
 				theApp.SetConfig("MaxAnisotropy", (int)data);
 			}
@@ -302,11 +368,15 @@ bool GSSettingsDlg::OnCommand(HWND hWnd, UINT id, UINT code)
 			theApp.SetConfig("logz", (int)IsDlgButtonChecked(m_hWnd, IDC_LOGZ));
 			theApp.SetConfig("fba", (int)IsDlgButtonChecked(m_hWnd, IDC_FBA));
 			theApp.SetConfig("aa1", (int)IsDlgButtonChecked(m_hWnd, IDC_AA1));
+			theApp.SetConfig("customhdrev", (int)IsDlgButtonChecked(m_hWnd, IDC_CUSTOMHDREV));
 			theApp.SetConfig("nativeres", (int)IsDlgButtonChecked(m_hWnd, IDC_NATIVERES));
 			theApp.SetConfig("resx", (int)SendMessage(GetDlgItem(m_hWnd, IDC_RESX), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("resy", (int)SendMessage(GetDlgItem(m_hWnd, IDC_RESY), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("scalex", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SCALEX), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("scaley", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SCALEY), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("extrathreads", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SWTHREADS), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("AnisotropicFiltering", (int)IsDlgButtonChecked(m_hWnd, IDC_ANISOTROPIC));
+
 
 			// Shade Boost
 			theApp.SetConfig("ShadeBoost", (int)IsDlgButtonChecked(m_hWnd, IDC_SHADEBOOST));
@@ -316,6 +386,13 @@ bool GSSettingsDlg::OnCommand(HWND hWnd, UINT id, UINT code)
 
 			// External FX Shader
 			theApp.SetConfig("shaderfx", (int)IsDlgButtonChecked(m_hWnd, IDC_SHADER_FX));
+			
+			// Custom Shader
+			theApp.SetConfig("customshader", (int)IsDlgButtonChecked(m_hWnd, IDC_CUSTOMSHADER));
+
+			// External FX Shader(OpenGL)
+			theApp.SetConfig("shaderfx_conf", "shaders/GSdx_FX_Settings.ini");
+			theApp.SetConfig("shaderfx_glsl", "shaders/GSdx.fx");
 
 			theApp.SetConfig("UserHacks", (int)IsDlgButtonChecked(m_hWnd, IDC_HACKS_ENABLED));
 			
@@ -364,16 +441,19 @@ void GSSettingsDlg::UpdateRenderers()
 	{
 		GSSetting r = theApp.m_gs_renderers[i];
 
-		if(i >= 3 && i <= 5)
+		if(r.id >= 3 && r.id <= 5 || r.id == 15)
 		{
 			if(level < D3D_FEATURE_LEVEL_10_0) continue;
 
-			r.name = std::string("Direct3D") + (level >= D3D_FEATURE_LEVEL_11_0 ? "11" : "10");
+			r.name += (level >= D3D_FEATURE_LEVEL_11_0 ? "11" : "10");
 		}
 
 		renderers.push_back(r);
-		if (r.id == renderer_setting)
+
+		if(r.id == renderer_setting)
+		{
 			renderer_sel = renderer_setting;
+		}
 	}
 
 	ComboBoxInit(IDC_RENDERER, renderers, renderer_sel);
@@ -390,32 +470,47 @@ void GSSettingsDlg::UpdateControls()
 		scaling = (int)i;
 	}
 
+	int HDselect = 1;
+
+	if (ComboBoxGetSelData(IDC_HDMODE, i))
+	{
+		HDselect = (int)i;
+	}
+
 	if(ComboBoxGetSelData(IDC_RENDERER, i))
 	{
-		bool dx9 = (i / 3) == 0;
-		bool dx11 = (i / 3) == 1;
-		bool ogl = (i / 3) == 4;
-		bool hw = (i % 3) == 0;
-		//bool sw = (i % 3) == 1;
+		bool dx9 = i >= 0 && i <= 2 || i == 14;
+		bool dx11 = i >= 3 && i <= 5 || i == 15;
+		bool ogl = i >= 12 && i <= 13 || i == 17;
+		bool hw = i == 0 || i == 3 || i == 12;
+		//bool sw = i == 1 || i == 4 || i == 10 || i == 13;
+		bool ocl = i >= 14 && i <= 17;
+		bool customhdrev = !!IsDlgButtonChecked(m_hWnd, IDC_CUSTOMHDREV);
 		bool native = !!IsDlgButtonChecked(m_hWnd, IDC_NATIVERES);
 
 		ShowWindow(GetDlgItem(m_hWnd, IDC_LOGO9), dx9 ? SW_SHOW : SW_HIDE);
 		ShowWindow(GetDlgItem(m_hWnd, IDC_LOGO11), dx11 ? SW_SHOW : SW_HIDE);
 
+		EnableWindow(GetDlgItem(m_hWnd, IDC_OPENCL_DEVICE), ocl);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_WINDOWED), dx9);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_HDMODE), hw);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_CUSTOMHDREV), hw && HDselect>1);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_RESX), hw && !native && scaling == 1);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_RESX_EDIT), hw && !native && scaling == 1);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_RESY), hw && !native && scaling == 1);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_RESY_EDIT), hw && !native && scaling == 1);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_SCALEX), hw && HDselect>1 && customhdrev);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_SCALEX_EDIT), hw && HDselect>1 && customhdrev);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_SCALEY), hw && HDselect>1 && customhdrev);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_SCALEY_EDIT), hw && HDselect>1 && customhdrev);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_UPSCALE_MULTIPLIER), hw && !native);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_NATIVERES), hw);
-		//EnableWindow(GetDlgItem(m_hWnd, IDC_FILTER), hw);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_FILTER), hw);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_PALTEX), hw);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_LOGZ), dx9 && hw);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_FBA), dx9 && hw);
-		EnableWindow(GetDlgItem(m_hWnd, IDC_ANISOTROPIC), (int)IsDlgButtonChecked(m_hWnd, IDC_FILTER) && hw && !ogl);
-		EnableWindow(GetDlgItem(m_hWnd, IDC_AFCOMBO), (int)IsDlgButtonChecked(m_hWnd, IDC_FILTER) && (int)IsDlgButtonChecked(m_hWnd, IDC_ANISOTROPIC) && hw && !ogl);
-		
+		EnableWindow(GetDlgItem(m_hWnd, IDC_ANISOTROPIC), (int)IsDlgButtonChecked(m_hWnd, IDC_FILTER) && hw);
+		EnableWindow(GetDlgItem(m_hWnd, IDC_AFCOMBO), (int)IsDlgButtonChecked(m_hWnd, IDC_FILTER) && (int)IsDlgButtonChecked(m_hWnd, IDC_ANISOTROPIC) && hw);
 		//EnableWindow(GetDlgItem(m_hWnd, IDC_AA1), sw); // Let uers set software params regardless of renderer used 
 		//EnableWindow(GetDlgItem(m_hWnd, IDC_SWTHREADS_EDIT), sw);
 		//EnableWindow(GetDlgItem(m_hWnd, IDC_SWTHREADS), sw);
@@ -427,7 +522,6 @@ void GSSettingsDlg::UpdateControls()
 		// Hacks
 		EnableWindow(GetDlgItem(m_hWnd, IDC_HACKS_ENABLED), hw);
 		EnableWindow(GetDlgItem(m_hWnd, IDC_HACKSBUTTON), hw /*&& IsDlgButtonChecked(m_hWnd, IDC_HACKS_ENABLED) == BST_CHECKED*/);
-
 	}
 }
 
@@ -546,7 +640,7 @@ GSHacksDlg::GSHacksDlg() :
 }
 
 void GSHacksDlg::OnInit()
-{	
+{					
 	bool dx9 = (int)SendMessage(GetDlgItem(GetParent(m_hWnd), IDC_RENDERER), CB_GETCURSEL, 0, 0) / 3 == 0;
 	unsigned short cb = 0;
 
@@ -590,6 +684,8 @@ void GSHacksDlg::OnInit()
 	CheckDlgButton(m_hWnd, IDC_ALPHASTENCIL, theApp.GetConfig("UserHacks_AlphaStencil", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_NVIDIA_HACK, theApp.GetConfig("UserHacks_NVIDIAHack", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_DISABLE_ALL_HACKS, theApp.GetConfig("UserHacks_DisableCrcHacks", 0));
+	CheckDlgButton(m_hWnd, IDC_ROUND_SPRITE, theApp.GetConfig("UserHacks_round_sprite_offset", 0));
+	CheckDlgButton(m_hWnd, IDC_ALIGN_SPRITE, theApp.GetConfig("UserHacks_align_sprite_X", 0));
 	CheckDlgButton(m_hWnd, IDC_SKIPTEXHOTKEY, theApp.GetConfig("UserHacks_Skiptexhotkey", 0));
 	CheckDlgButton(m_hWnd, IDC_PSMHOTKEY, theApp.GetConfig("UserHacks_PSMhotkey", 0));
 	CheckDlgButton(m_hWnd, IDC_SKIPPOSTPROCESSING, theApp.GetConfig("UserHacks_SkipPostProcessing", 0));
@@ -597,6 +693,8 @@ void GSHacksDlg::OnInit()
 	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PRIMCLASS, theApp.GetConfig("UserHacks_Check_SkipIso_primclass", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_FBMSK, theApp.GetConfig("UserHacks_Check_SkipIso_FBMSK", 0));
 	CheckDlgButton(m_hWnd, IDC_CHECK_SKIPISO_PSM, theApp.GetConfig("UserHacks_Check_SkipIso_PSM", 0));
+	CheckDlgButton(m_hWnd, IDC_NOALPHATEST, theApp.GetConfig("UserHacks_NoAlphaTest", 0));
+	CheckDlgButton(m_hWnd, IDC_AUTOSKIPDRAWDEPTH, theApp.GetConfig("UserHacks_AutoSkipDrawDepth", 1));
 	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
 	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PRIMCLASS), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("SkipIso_primclass", 0), 0));
 	SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_SETRANGE, 0, MAKELPARAM(5, 0));
@@ -617,7 +715,7 @@ void GSHacksDlg::OnInit()
 	SendMessage(GetDlgItem(m_hWnd, IDC_skiptex), UDM_SETPOS, 0, MAKELPARAM(theApp.GetConfig("skiptex", 0), 0));
 
 	// Hacks descriptions
-	SetWindowText(GetDlgItem(m_hWnd, IDC_HACK_DESCRIPTION), "Hover over an item to get a description.");
+	SetWindowText(GetDlgItem(m_hWnd, IDC_HACK_DESCRIPTION), "Hover over an item to get a description.\n\nHotkey:\nCustom shader:shift + back. It is load shaders/shader.fx\nFx shader:back\nfxaa:end");
 	UpdateControls();
 }
 
@@ -649,7 +747,6 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_SETCURSOR:
 	{
-		const char *helpstr = "";
 		bool updateText = true;
 
 		POINT pos;
@@ -663,120 +760,7 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 		else
 			break;
 
-		switch (GetDlgCtrlID(hoveredwnd))
-		{
-			case IDC_SKIPDRAWHACK:
-			case IDC_SKIPDRAWHACKEDIT:
-			case IDC_STATIC_SKIPDRAW:
-				helpstr = "Skipdraw\n\nSkips drawing n surfaces completely. "
-						  "Use it, for example, to try and get rid of bad post processing effects."
-						  " Try values between 1 and 100.";
-				break;
-			case IDC_ALPHAHACK:
-				helpstr = "Alpha Hack\n\nDifferent alpha handling. Can work around some shadow problems.";
-				break;
-			case IDC_OFFSETHACK:
-				helpstr = "Halfpixel\n\nMight fix some misaligned fog, bloom, or blend effect.";
-				break;
-			case IDC_SPRITEHACK:
-				helpstr = "Sprite Hack\n\nHelps getting rid of black inner lines in some filtered sprites."
-						  " Half option is the preferred one. Use it for Mana Khemia or ArTonelico for example."
-						  " Full can be used for Tales of Destiny.";
-				break;
-			case IDC_WILDHACK:
-				helpstr = "WildArms\n\nLowers the GS precision to avoid gaps between pixels when"
-						  " upscaling. Full option fixes the text on WildArms games, while Half option might improve portraits"
-						  " in ArTonelico.";
-				break;
-			case IDC_MSAACB:
-			case IDC_STATIC_MSAA:
-				helpstr = "Multisample Anti-Aliasing\n\nEnables hardware Anti-Aliasing. Needs lots of memory."
-						  " The Z-24 modes might need to have LogarithmicZ to compensate for the bits lost (only in DX9 mode).";
-				break;
-			case IDC_AGGRESSIVECRC:
-				helpstr = "Use more aggressive CRC hacks on some games\n\n"
-						  "Only affects few games, removing some effects which might make the image sharper/clearer.\n"
-						  "Affected games: FFX, FFX2, FFXII, GOW2, ICO, SoTC, SSX3, DMC3, FatalFrame3(JP). \n"
-						  "Works as a speedhack for: Steambot Chronicles, Tales of Symphonia(JP), AZOE(JP)";
-				break;
-			case IDC_ALPHASTENCIL:
-				helpstr = "Extend stencil based emulation of destination alpha to perform stencil operations while drawing.\n\n"
-						  "Improves many shadows which are normally overdrawn in parts, may affect other effects.\n"
-						  "Will disable partial transparency in some games or even prevent drawing some elements altogether.";
-				break;
-			case IDC_CHECK_NVIDIA_HACK:
-				helpstr = "This is a hack to work around problems with recent NVIDIA drivers causing odd stretching problems in DirectX 11 only "
-						  "when using Upscaling.\n\n"
-						  "Try not to use this unless your game Videos or 2D screens are stretching outside the frame.\n\n"
-						  "If you have an AMD/ATi graphics card you should not need this.";
-				break;
-			case IDC_CHECK_DISABLE_ALL_HACKS:
-				helpstr = "FOR TESTING ONLY!!\n\n"
-						  "Disable all CRC hacks - will break many games. Overrides CrcHacksExclusion at gsdx.ini\n"
-						  "\n"
-						  "It's possible to exclude CRC hacks also via the gsdx.ini. E.g.:\n"
-						  "CrcHacksExclusions=all\n"
-						  "CrcHacksExclusions=0x0F0C4A9C, 0x0EE5646B, 0x7ACF7E03";
-				break;
-			case IDC_SKIPPOSTPROCESSING:
-				helpstr = "Try to fix fog or blur";
-				break;
-			case IDC_skiptexEDIT:
-			case IDC_skiptex:
-			case IDC_STATIC_TEXT_skiptex:
-				helpstr = "Try to clear ghosting or fog, range:0-15\n\n"
-						  "Hotkey:Home¡BPageUp¡BPageDown, must check with Enable Hotkey.\n\n"
-						  "May cause black screen or remove some effect";
-				break;
-			case IDC_SKIPISO:
-				helpstr = "Try to clear ghosting or fog or blur, may be others\n\n"
-						  "May cause black screen or remove some effect";
-				break;
-			case IDC_SKIPISO_PRIMCLASSEDIT:
-			case IDC_SKIPISO_PRIMCLASS:
-			case IDC_CHECK_SKIPISO_PRIMCLASS:
-				helpstr = "PRIMCLASS:limited for SkipIso range\n\n"
-						  "If no check this button the number cant be use.";
-				break;
-			case IDC_SKIPISO_FBMSKEDIT:
-			case IDC_SKIPISO_FBMSK:
-			case IDC_CHECK_SKIPISO_FBMSK:
-				helpstr = "FBMSK:limited for SkipIso range\n\n"
-						  "If no check this button the number cant be use.";
-				break;
-			case IDC_SKIPISO_PSMEDIT:
-			case IDC_SKIPISO_PSM:
-			case IDC_CHECK_SKIPISO_PSM:
-				helpstr = "PSM:limited for SkipIso range\n\n"
-						  "If no check this button the number cant be use.\n\n"
-						  "The often used number is 0 or 1 or 19.";
-				break;
-			case IDC_SKIPTEXHOTKEY:
-				helpstr = "Enable Skiptex's Hotkey,\n\n"
-						  "Speed down!! only for find skiptex number\n\n"						  
-						  "Home:return 0¡BPageUp:+1¡BPageDown:-1";
-				break;
-			case IDC_PSMHOTKEY:
-				helpstr = "Enable Skipiso_PSM Hotkey,\n\n"
-						  "Speed down!! only for find Skipiso_PSM number\n\n"
-						  "Shift && Home:return 0¡BShift && PageUp:+1¡BShift && PageDown:-1";
-				break;
-			case IDC_TCOFFSETX:
-			case IDC_TCOFFSETX2:
-			case IDC_STATIC_TCOFFSETX:
-			case IDC_TCOFFSETY:
-			case IDC_TCOFFSETY2:
-			case IDC_STATIC_TCOFFSETY:
-				helpstr = "Texture Coordinates Offset Hack\n\n"
-						  "Offset for the ST/UV texture coordinates. Fixes some odd texture issues and might fix some post processing alignment too.\n\n"
-						  "  0500 0500, fixes Persona 3 minimap, helps Haunting Ground.\n"
-						  "  0000 1000, fixes Xenosaga hair edges (DX10+ Issue)\n";
-				break;
-
-			default:
-				updateText = false;
-				break;
-		}
+		const char *helpstr = dialog_message(GetDlgCtrlID(hoveredwnd), &updateText);
 
 		if(updateText)
 			SetWindowText(GetDlgItem(m_hWnd, IDC_HACK_DESCRIPTION), helpstr);
@@ -815,7 +799,7 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 			UpdateControls();
 			break;
 		case IDOK: 
-		{;
+		{
 			theApp.SetConfig("UserHacks_MSAA", cb2msaa[(int)SendMessage(GetDlgItem(m_hWnd, IDC_MSAACB), CB_GETCURSEL, 0, 0)]);
 			theApp.SetConfig("UserHacks_AlphaHack", (int)IsDlgButtonChecked(m_hWnd, IDC_ALPHAHACK));
 			theApp.SetConfig("UserHacks_HalfPixelOffset", (int)IsDlgButtonChecked(m_hWnd, IDC_OFFSETHACK));
@@ -826,6 +810,8 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 			theApp.SetConfig("UserHacks_AlphaStencil", (int)IsDlgButtonChecked(m_hWnd, IDC_ALPHASTENCIL));
 			theApp.SetConfig("UserHacks_NVIDIAHack", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_NVIDIA_HACK));
 			theApp.SetConfig("UserHacks_DisableCrcHacks", (int)IsDlgButtonChecked(m_hWnd, IDC_CHECK_DISABLE_ALL_HACKS));
+			theApp.SetConfig("UserHacks_round_sprite_offset", (int)IsDlgButtonChecked(m_hWnd, IDC_ROUND_SPRITE));
+			theApp.SetConfig("Userhacks_align_sprite_X", (int)IsDlgButtonChecked(m_hWnd, IDC_ALIGN_SPRITE));
 			theApp.SetConfig("UserHacks_Skiptexhotkey", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPTEXHOTKEY));
 			theApp.SetConfig("UserHacks_PSMhotkey", (int)IsDlgButtonChecked(m_hWnd, IDC_PSMHOTKEY));
 			theApp.SetConfig("UserHacks_SkipPostProcessing", (int)IsDlgButtonChecked(m_hWnd, IDC_SKIPPOSTPROCESSING));
@@ -837,11 +823,14 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 			theApp.SetConfig("SkipIso_FBMSK", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_FBMSK), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("SkipIso_PSM", (int)SendMessage(GetDlgItem(m_hWnd, IDC_SKIPISO_PSM), UDM_GETPOS, 0, 0));
 			theApp.SetConfig("skiptex", (int)SendMessage(GetDlgItem(m_hWnd, IDC_skiptex), UDM_GETPOS, 0, 0));
+			theApp.SetConfig("UserHacks_NoAlphaTest", (int)IsDlgButtonChecked(m_hWnd, IDC_NOALPHATEST));
+			theApp.SetConfig("UserHacks_AutoSkipDrawDepth", (int)IsDlgButtonChecked(m_hWnd, IDC_AUTOSKIPDRAWDEPTH));
 
 			unsigned int TCOFFSET  =  SendMessage(GetDlgItem(m_hWnd, IDC_TCOFFSETX), UDM_GETPOS, 0, 0) & 0xFFFF;
 						 TCOFFSET |= (SendMessage(GetDlgItem(m_hWnd, IDC_TCOFFSETY), UDM_GETPOS, 0, 0) & 0xFFFF) << 16;
 
 			theApp.SetConfig("UserHacks_TCOffset", TCOFFSET);
+
 			EndDialog(m_hWnd, id);
 		} break;
 		}
@@ -855,3 +844,4 @@ bool GSHacksDlg::OnMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
 	return true;
 }
+

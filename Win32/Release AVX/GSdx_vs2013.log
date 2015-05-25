@@ -1,0 +1,206 @@
+﻿已經開始建置於 2015/5/21 下午 03:26:07。
+     1>節點 2 (Build 目標) 上的專案 "D:\pcsx2\plugins\GSdx\GSdx_vs2013.vcxproj"。
+     1>PreBuildEvent:
+         "D:\pcsx2\plugins\GSdx\.\..\..\common\vsprops\preBuild.cmd" "D:\pcsx2\plugins\GSdx\."
+         :VCEnd
+         commit b52ee6f1f6703aed823151d743b4942495e1b17a
+         Author: Gregory Hainaut <gregory.hainaut@gmail.com>
+         Date:   Wed May 20 09:42:22 2015 +0200
+         
+             gsdx-linux-gui: add an option for accurate color clipping
+             
+             Note: it is only for debug purpose
+             
+             Sotc testcase 187 fps => 125 fps (2x scaling)
+         複製了         1 個檔案。
+       ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\include" /Iinclude /ID:\pcsx2\3rdparty /ID:\pcsx2\3rdparty\opencl /Zi /nologo /W4 /WX- /MP /O2 /Ob2 /Oi /Ot /Oy /GL /D _WIN32 /D NDEBUG /D _SECURE_SCL=0 /D _WINDOWS /D _WIN32_WINNT=0x500 /D _M_SSE=0x500 /D _USING_V110_SDK71_ /D _WINDLL /D _MBCS /GF /Gm- /EHsc /MD /GS- /arch:AVX /fp:fast /Zc:wchar_t /Zc:forScope /GR- /Yu"stdafx.h" /Fp"Win32\Release AVX\GSdx32-AVX.pch" /Fo"Win32\Release AVX\\" /Fd"Win32\Release AVX\vc120.pdb" /Gd /TP /wd4996 /wd4995 /wd4324 /wd4100 /wd4101 /wd4201 /wd4556 /wd4127 /wd4512 /analyze- /errorReport:prompt GS.cpp GSRendererOGL.cpp GSUtil.cpp
+         GS.cpp
+         GSRendererOGL.cpp
+         GSUtil.cpp
+     1>d:\pcsx2\plugins\gsdx\GSVector.h(2306): warning C4819: 檔案含有無法在目前字碼頁 (950) 中表示的字元。請以 Unicode 格式儲存檔案以防止資料遺失 (GSUtil.cpp)
+     1>d:\pcsx2\plugins\gsdx\GSVector.h(2306): warning C4819: 檔案含有無法在目前字碼頁 (950) 中表示的字元。請以 Unicode 格式儲存檔案以防止資料遺失 (GSRendererOGL.cpp)
+     1>d:\pcsx2\plugins\gsdx\GSVector.h(2306): warning C4819: 檔案含有無法在目前字碼頁 (950) 中表示的字元。請以 Unicode 格式儲存檔案以防止資料遺失 (GS.cpp)
+     1>GSRendererOGL.cpp(32): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(33): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(34): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(36): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(37): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(38): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(42): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(43): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(44): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(45): warning C4800: 'int' : 強制將 bool 的值定為 'true' 或 'false' (效能警告)
+     1>GSRendererOGL.cpp(272): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(275): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(278): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(281): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(284): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(287): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(317): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(324): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(327): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(330): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(333): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(336): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(339): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(345): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(387): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(390): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(393): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(396): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(399): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(402): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(432): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(439): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(442): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(445): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(448): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(451): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(454): warning C4389: '==' : signed/unsigned 不相符
+     1>GSRendererOGL.cpp(460): warning C4389: '==' : signed/unsigned 不相符
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /I"C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\include" /Iinclude /ID:\pcsx2\3rdparty /ID:\pcsx2\3rdparty\opencl /Zi /nologo /W4 /WX- /MP /O2 /Ob2 /Oi /Ot /Oy /GL /D _WIN32 /D NDEBUG /D _SECURE_SCL=0 /D _WINDOWS /D _WIN32_WINNT=0x500 /D _M_SSE=0x500 /D _USING_V110_SDK71_ /D _WINDLL /D _MBCS /GF /Gm- /EHsc /MD /GS- /arch:AVX /fp:fast /Zc:wchar_t /Zc:forScope /GR- /Fo"Win32\Release AVX\\" /Fd"Win32\Release AVX\vc120.pdb" /Gd /TP /wd4996 /wd4995 /wd4324 /wd4100 /wd4101 /wd4201 /wd4556 /wd4127 /wd4512 /analyze- /errorReport:prompt baseclasses\amextra.cpp baseclasses\amfilter.cpp baseclasses\amvideo.cpp baseclasses\combase.cpp baseclasses\ctlutil.cpp baseclasses\ddmm.cpp baseclasses\mtype.cpp baseclasses\outputq.cpp baseclasses\pstream.cpp baseclasses\pullpin.cpp baseclasses\refclock.cpp baseclasses\renbase.cpp baseclasses\schedule.cpp baseclasses\seekpt.cpp baseclasses\source.cpp baseclasses\strmctl.cpp baseclasses\sysclock.cpp baseclasses\transfrm.cpp baseclasses\transip.cpp baseclasses\vtrans.cpp baseclasses\wxdebug.cpp baseclasses\wxlist.cpp baseclasses\wxutil.cpp
+         amextra.cpp
+         amfilter.cpp
+         amvideo.cpp
+         combase.cpp
+         ctlutil.cpp
+         ddmm.cpp
+         mtype.cpp
+         outputq.cpp
+         pstream.cpp
+         pullpin.cpp
+         refclock.cpp
+         renbase.cpp
+         schedule.cpp
+         seekpt.cpp
+         source.cpp
+         strmctl.cpp
+         sysclock.cpp
+         transfrm.cpp
+         transip.cpp
+         vtrans.cpp
+         wxdebug.cpp
+         wxlist.cpp
+         wxutil.cpp
+       ResourceCompile:
+         C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\bin\rc.exe /D _USING_V110_SDK71_ /l"0x0409" /nologo /fo"Win32\Release AVX\GSdx.res" GSdx.rc 
+     1>GSdx.rc(160): warning RC2182: duplicate dialog control ID 2079
+         
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"D:\pcsx2\bin\plugins\GSdx32-AVX.dll" /INCREMENTAL:NO /NOLOGO /LIBPATH:D:\pcsx2\plugins\GSdx\.\..\..\deps\Win32\Release /LIBPATH:"C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86" /LIBPATH:D:\pcsx2\plugins\GSdx\vtune\x86 /LIBPATH:lib32 d3d11.lib d3dx11.lib d3d10_1.lib d3dx10.lib d3d9.lib d3dx9.lib dxgi.lib dxguid.lib winmm.lib strmiids.lib xinput.lib opengl32.lib opencl.lib comsuppw.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib Delayimp.lib /DEF:".\GSdx.def" /DELAYLOAD:d3d9.dll /DELAYLOAD:d3dx9_43.dll /DELAYLOAD:d3d11.dll /DELAYLOAD:d3dx11_43.dll /DELAYLOAD:dxgi.dll /DELAYLOAD:opengl32.dll /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:\pcsx2\bin\plugins\GSdx32-AVX.pdb" /SUBSYSTEM:WINDOWS,"5.01" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE:NO /NXCOMPAT /IMPLIB:"D:\pcsx2\bin\plugins\GSdx32-AVX.lib" /MACHINE:X86 /SAFESEH /DLL "Win32\Release AVX\GSdx.res"
+         "Win32\Release AVX\GLLoader.obj"
+         "Win32\Release AVX\GLState.obj"
+         "Win32\Release AVX\GPU.obj"
+         "Win32\Release AVX\GPUDrawScanline.obj"
+         "Win32\Release AVX\GPUDrawScanlineCodeGenerator.obj"
+         "Win32\Release AVX\GPULocalMemory.obj"
+         "Win32\Release AVX\GPURenderer.obj"
+         "Win32\Release AVX\GPURendererSW.obj"
+         "Win32\Release AVX\GPUSettingsDlg.obj"
+         "Win32\Release AVX\GPUSetupPrimCodeGenerator.obj"
+         "Win32\Release AVX\GPUState.obj"
+         "Win32\Release AVX\GS.obj"
+         "Win32\Release AVX\GSAlignedClass.obj"
+         "Win32\Release AVX\GSBlock.obj"
+         "Win32\Release AVX\GSCapture.obj"
+         "Win32\Release AVX\GSCaptureDlg.obj"
+         "Win32\Release AVX\GSClut.obj"
+         "Win32\Release AVX\GSCodeBuffer.obj"
+         "Win32\Release AVX\GSCrc.obj"
+         "Win32\Release AVX\GSDevice.obj"
+         "Win32\Release AVX\GSDevice11.obj"
+         "Win32\Release AVX\GSDevice9.obj"
+         "Win32\Release AVX\GSDeviceDX.obj"
+         "Win32\Release AVX\GSDeviceNull.obj"
+         "Win32\Release AVX\GSDeviceOGL.obj"
+         "Win32\Release AVX\GSDeviceSW.obj"
+         "Win32\Release AVX\GSDialog.obj"
+         "Win32\Release AVX\GSDirtyRect.obj"
+         "Win32\Release AVX\GSDrawScanline.obj"
+         "Win32\Release AVX\GSDrawScanlineCodeGenerator.obj"
+         "Win32\Release AVX\GSDrawScanlineCodeGenerator.x86.avx.obj"
+         "Win32\Release AVX\GSDump.obj"
+         "Win32\Release AVX\GSdx.obj"
+         "Win32\Release AVX\GSFunctionMap.obj"
+         "Win32\Release AVX\GSLocalMemory.obj"
+         "Win32\Release AVX\GSPerfMon.obj"
+         "Win32\Release AVX\GSRasterizer.obj"
+         "Win32\Release AVX\GSRenderer.obj"
+         "Win32\Release AVX\GSRendererCL.obj"
+         "Win32\Release AVX\GSRendererCS.obj"
+         "Win32\Release AVX\GSRendererDX.obj"
+         "Win32\Release AVX\GSRendererDX11.obj"
+         "Win32\Release AVX\GSRendererDX9.obj"
+         "Win32\Release AVX\GSRendererHW.obj"
+         "Win32\Release AVX\GSRendererNull.obj"
+         "Win32\Release AVX\GSRendererOGL.obj"
+         "Win32\Release AVX\GSRendererSW.obj"
+         "Win32\Release AVX\GSSetting.obj"
+         "Win32\Release AVX\GSSettingsDlg.obj"
+         "Win32\Release AVX\GSSetupPrimCodeGenerator.obj"
+         "Win32\Release AVX\GSSetupPrimCodeGenerator.x86.avx.obj"
+         "Win32\Release AVX\GSSetupPrimCodeGenerator.x86.avx2.obj"
+         "Win32\Release AVX\GSShaderOGL.obj"
+         "Win32\Release AVX\GSState.obj"
+         "Win32\Release AVX\GSTables.obj"
+         "Win32\Release AVX\GSTexture.obj"
+         "Win32\Release AVX\GSTexture11.obj"
+         "Win32\Release AVX\GSTexture9.obj"
+         "Win32\Release AVX\GSTextureOGL.obj"
+         "Win32\Release AVX\GSTextureCache.obj"
+         "Win32\Release AVX\GSTextureCache11.obj"
+         "Win32\Release AVX\GSTextureCache9.obj"
+         "Win32\Release AVX\GSTextureCacheOGL.obj"
+         "Win32\Release AVX\GSTextureCacheSW.obj"
+         "Win32\Release AVX\GSTextureFX11.obj"
+         "Win32\Release AVX\GSTextureFX9.obj"
+         "Win32\Release AVX\GSTextureFXOGL.obj"
+         "Win32\Release AVX\GSTextureNull.obj"
+         "Win32\Release AVX\GSTextureSW.obj"
+         "Win32\Release AVX\GSThread.obj"
+         "Win32\Release AVX\GSUtil.obj"
+         "Win32\Release AVX\GSVector.obj"
+         "Win32\Release AVX\GSVertexList.obj"
+         "Win32\Release AVX\GSVertexSW.obj"
+         "Win32\Release AVX\GSVertexTrace.obj"
+         "Win32\Release AVX\GSWnd.obj"
+         "Win32\Release AVX\GSWndDX.obj"
+         "Win32\Release AVX\GSWndWGL.obj"
+         "Win32\Release AVX\stdafx.obj"
+         "Win32\Release AVX\amextra.obj"
+         "Win32\Release AVX\amfilter.obj"
+         "Win32\Release AVX\amvideo.obj"
+         "Win32\Release AVX\combase.obj"
+         "Win32\Release AVX\ctlutil.obj"
+         "Win32\Release AVX\ddmm.obj"
+         "Win32\Release AVX\mtype.obj"
+         "Win32\Release AVX\outputq.obj"
+         "Win32\Release AVX\pstream.obj"
+         "Win32\Release AVX\pullpin.obj"
+         "Win32\Release AVX\refclock.obj"
+         "Win32\Release AVX\renbase.obj"
+         "Win32\Release AVX\schedule.obj"
+         "Win32\Release AVX\seekpt.obj"
+         "Win32\Release AVX\source.obj"
+         "Win32\Release AVX\strmctl.obj"
+         "Win32\Release AVX\sysclock.obj"
+         "Win32\Release AVX\transfrm.obj"
+         "Win32\Release AVX\transip.obj"
+         "Win32\Release AVX\vtrans.obj"
+         "Win32\Release AVX\wxdebug.obj"
+         "Win32\Release AVX\wxlist.obj"
+         "Win32\Release AVX\wxutil.obj"
+            正在建立程式庫 D:\pcsx2\bin\plugins\GSdx32-AVX.lib 和物件 D:\pcsx2\bin\plugins\GSdx32-AVX.exp
+         正在產生程式碼
+     1>d:\pcsx2\plugins\gsdx\gssetting.cpp(154): warning C4702: 有不可能執行到的程式碼
+         已完成程式碼產生
+         GSdx_vs2013.vcxproj -> D:\pcsx2\bin\plugins\GSdx32-AVX.dll
+       PostBuildEvent:
+         .\postBuild.cmd "D:\pcsx2\bin\plugins\GSdx32-AVX.dll" "GSdx32-AVX" .dll plugins
+         :VCEnd
+     1>專案 "D:\pcsx2\plugins\GSdx\GSdx_vs2013.vcxproj" (Build 目標) 建置完成。
+
+建置成功。
+
+經過時間 00:00:15.52
