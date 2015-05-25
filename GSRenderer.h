@@ -50,7 +50,6 @@ protected:
 	bool m_mipmap;
 	bool m_framelimit;
 	bool m_shaderfx;
-	bool m_customshader;
 	bool m_fxaa;
 	bool m_shadeboost;
 	bool UserHacks_Skiptexhotkey;
@@ -83,11 +82,7 @@ public:
 	virtual void EndCapture();
 
 public:
-#ifdef _CX11_
-	std::mutex m_pGSsetTitle_Crit;
-#else
 	GSCritSec m_pGSsetTitle_Crit;
-#endif
 
 	char m_GStitleInfoBuffer[128];
 };

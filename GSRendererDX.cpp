@@ -45,7 +45,6 @@ GSRendererDX::GSRendererDX(GSTextureCache* tc, const GSVector2& pixelcenter)
 	m_SkipIso_primclass = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_primclass", 0): 0;
 	m_SkipIso_FBMSK = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_FBMSK", 0): 0;
 	m_SkipIso_PSM = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("SkipIso_PSM", 0): 0;
-	m_NoAlphaTest = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_NoAlphaTest", 0) : 0;
 }
 
 GSRendererDX::~GSRendererDX()
@@ -73,10 +72,10 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 		if(dev->HasStencil())
 		{
 			GSVector4 s = GSVector4(rtscale.x / rtsize.x, rtscale.y / rtsize.y);
-			GSVector4 off = GSVector4(-1.0f, 1.0f);
+			GSVector4 o = GSVector4(-1.0f, 1.0f);
 
-			GSVector4 src = ((m_vt.m_min.p.xyxy(m_vt.m_max.p) + off.xxyy()) * s.xyxy()).sat(off.zzyy());
-			GSVector4 dst = src * 2.0f + off.xxxx();
+			GSVector4 src = ((m_vt.m_min.p.xyxy(m_vt.m_max.p) + o.xxyy()) * s.xyxy()).sat(o.zzyy());
+			GSVector4 dst = src * 2.0f + o.xxxx();
 
 			GSVertexPT1 vertices[] =
 			{
@@ -151,7 +150,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			case 5:
-				if (tex == 0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK >= 0xEFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			 }
 		}
@@ -175,7 +174,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF) return;
 			  break;
 			case 5:
-				if (tex == 0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK >= 0xEFFFFFFF) return;
+			  if(tex==0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0) return;
 			  break;
 			 }
 		}
@@ -203,7 +202,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex==0 && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			case 5:
-				if (tex == 0 && context->FRAME.FBMSK >= 0xEFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  if(tex==0 && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			 }
 		}
@@ -231,7 +230,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex==0 && context->FRAME.FBMSK ==0x03FFF) return;
 			  break;
 			case 5:
-				if (tex == 0 && context->FRAME.FBMSK >= 0xEFFFFFFF) return;
+			  if(tex==0 && context->FRAME.FBMSK > 0) return;
 			  break;
 			 }
 		}
@@ -266,7 +265,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			case 5:
-				if (tex != 0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK >= 0xEFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			 }
 		}
@@ -290,7 +289,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK ==0x03FFF) return;
 			  break;
 			case 5:
-				if (tex != 0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK >= 0xEFFFFFFF) return;
+			  if(tex!=0 && m_vt.m_primclass == m_SkipIso_primclass && context->FRAME.FBMSK > 0) return;
 			  break;
 			 }
 		}
@@ -318,7 +317,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex!=0 && context->FRAME.FBMSK ==0x03FFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			case 5:
-				if (tex != 0 && context->FRAME.FBMSK >= 0xEFFFFFFF && m_context->TEX0.PSM == m_SkipIso_PSM) return;
+			  if(tex!=0 && context->FRAME.FBMSK > 0 && m_context->TEX0.PSM == m_SkipIso_PSM) return;
 			  break;
 			 }
 		}
@@ -346,7 +345,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 			  if(tex!=0 && context->FRAME.FBMSK ==0x03FFF) return;
 			  break;
 			case 5:
-				if (tex != 0 && context->FRAME.FBMSK >= 0xEFFFFFFF) return;
+			  if(tex!=0 && context->FRAME.FBMSK > 0) return;
 			  break;
 			 }
 		}
@@ -381,7 +380,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 				//ASSERT(0);
 			}
 		}
-	 }
+	  }
 
 	om_bsel.wrgba = ~GSVector4i::load((int)context->FRAME.FBMSK).eq8(GSVector4i::xffffffff()).mask();
 
@@ -436,7 +435,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 	float oy = (float)(int)context->XYOFFSET.OFY;
 	float ox2 = 2.0f * m_pixelcenter.x / rtsize.x;
 	float oy2 = 2.0f * m_pixelcenter.y / rtsize.y;
-	
+
 	//This hack subtracts around half a pixel from OFX and OFY. (Cannot do this directly,
 	//because DX10 and DX9 have a different pixel center.)
 	//
@@ -499,22 +498,10 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 		ps_cb.FogColor_AREF = GSVector4::rgba32(env.FOGCOL.u32[0]) / 255;
 	}
 
-	if (context->TEST.ATE)
-	{
-		if (m_NoAlphaTest == 1)
-		{
-			ps_sel.atst = ATST_ALWAYS;
-		}
-		else
-		{
-			ps_sel.atst = context->TEST.ATST;
-		}
-	}
+	if(context->TEST.ATE)
+		ps_sel.atst = context->TEST.ATST;
 	else
-	{
 		ps_sel.atst = ATST_ALWAYS;
-	}
-		
 
 	if (context->TEST.ATE && context->TEST.ATST > 1)
 		ps_cb.FogColor_AREF.a = (float)context->TEST.AREF;
@@ -543,8 +530,6 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 		const GSLocalMemory::psm_t &cpsm = psm.pal > 0 ? GSLocalMemory::m_psm[context->TEX0.CPSM] : psm;
 		bool bilinear = m_filter == 2 ? m_vt.IsLinear() : m_filter != 0;
 		bool simple_sample = !tex->m_palette && cpsm.fmt == 0 && context->CLAMP.WMS < 3 && context->CLAMP.WMT < 3;
-		// Don't force extra filtering on sprite (it creates various upscaling issue)
-		bilinear &= !((m_vt.m_primclass == GS_SPRITE_CLASS) && m_userhacks_round_sprite_offset && !m_vt.IsLinear());
 
 		ps_sel.wms = context->CLAMP.WMS;
 		ps_sel.wmt = context->CLAMP.WMT;
@@ -642,14 +627,7 @@ void GSRendererDX::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sourc
 
 		static const uint32 iatst[] = {1, 0, 5, 6, 7, 2, 3, 4};
 
-		if (m_NoAlphaTest == 2)
-		{
-			ps_sel.atst = ATST_ALWAYS;
-		}
-		else
-		{
-			ps_sel.atst = iatst[ps_sel.atst];
-		}
+		ps_sel.atst = iatst[ps_sel.atst];
 
 		dev->SetupPS(ps_sel, &ps_cb, ps_ssel);
 

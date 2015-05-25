@@ -30,7 +30,6 @@ GSDevice9::GSDevice9()
 	m_rbswapped = true;
 	FXAA_Compiled = false;
 	ExShader_Compiled = false;
-	CustomShader_Compiled = false;
 
 
 	memset(&m_pp, 0, sizeof(m_pp));
@@ -801,7 +800,7 @@ GSTexture* GSDevice9::Resolve(GSTexture* t)
 	return NULL;
 }
 
-GSTexture* GSDevice9::CopyOffscreen(GSTexture* src, const GSVector4& sRect, int w, int h, int format, int ps_shader)
+GSTexture* GSDevice9::CopyOffscreen(GSTexture* src, const GSVector4& sr, int w, int h, int format)
 {
 	GSTexture* dst = NULL;
 
@@ -819,11 +818,11 @@ GSTexture* GSDevice9::CopyOffscreen(GSTexture* src, const GSVector4& sRect, int 
 
 	if(GSTexture* rt = CreateRenderTarget(w, h, false, format))
 	{
-		GSVector4 dRect(0, 0, w, h);
+		GSVector4 dr(0, 0, w, h);
 
 		if(GSTexture* src2 = src->IsMSAA() ? Resolve(src) : src)
 		{
-			StretchRect(src2, sRect, rt, dRect, m_convert.ps[1], NULL, 0);
+			StretchRect(src2, sr, rt, dr, m_convert.ps[1], NULL, 0);
 
 			if(src2 != src) Recycle(src2);
 		}
@@ -841,30 +840,30 @@ GSTexture* GSDevice9::CopyOffscreen(GSTexture* src, const GSVector4& sRect, int 
 	return dst;
 }
 
-void GSDevice9::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r)
+void GSDevice9::CopyRect(GSTexture* st, GSTexture* dt, const GSVector4i& r)
 {
-	if(!sTex || !dTex)
+	if(!st || !dt)
 	{
 		ASSERT(0);
 		return;
 	}
 
-	m_dev->StretchRect(*(GSTexture9*)sTex, r, *(GSTexture9*)dTex, r, D3DTEXF_NONE);
+	m_dev->StretchRect(*(GSTexture9*)st, r, *(GSTexture9*)dt, r, D3DTEXF_NONE);
 }
 
-void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, int shader, bool linear)
+void GSDevice9::StretchRect(GSTexture* st, const GSVector4& sr, GSTexture* dt, const GSVector4& dr, int shader, bool linear)
 {
-	StretchRect(sTex, sRect, dTex, dRect, m_convert.ps[shader], NULL, 0, linear);
+	StretchRect(st, sr, dt, dr, m_convert.ps[shader], NULL, 0, linear);
 }
 
-void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, IDirect3DPixelShader9* ps, const float* ps_cb, int ps_cb_len, bool linear)
+void GSDevice9::StretchRect(GSTexture* st, const GSVector4& sr, GSTexture* dt, const GSVector4& dr, IDirect3DPixelShader9* ps, const float* ps_cb, int ps_cb_len, bool linear)
 {
-	StretchRect(sTex, sRect, dTex, dRect, ps, ps_cb, ps_cb_len, &m_convert.bs, linear);
+	StretchRect(st, sr, dt, dr, ps, ps_cb, ps_cb_len, &m_convert.bs, linear);
 }
 
-void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, IDirect3DPixelShader9* ps, const float* ps_cb, int ps_cb_len, Direct3DBlendState9* bs, bool linear)
+void GSDevice9::StretchRect(GSTexture* st, const GSVector4& sr, GSTexture* dt, const GSVector4& dr, IDirect3DPixelShader9* ps, const float* ps_cb, int ps_cb_len, Direct3DBlendState9* bs, bool linear)
 {
-	if(!sTex || !dTex)
+	if(!st || !dt)
 	{
 		ASSERT(0);
 		return;
@@ -872,27 +871,27 @@ void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* 
 
 	BeginScene();
 
-	GSVector2i ds = dTex->GetSize();
+	GSVector2i ds = dt->GetSize();
 
 	// om
 
 	OMSetDepthStencilState(&m_convert.dss);
 	OMSetBlendState(bs, 0);
-	OMSetRenderTargets(dTex, NULL);
+	OMSetRenderTargets(dt, NULL);
 
 	// ia
 
-	float left = dRect.x * 2 / ds.x - 1.0f;
-	float top = 1.0f - dRect.y * 2 / ds.y;
-	float right = dRect.z * 2 / ds.x - 1.0f;
-	float bottom = 1.0f - dRect.w * 2 / ds.y;
+	float left = dr.x * 2 / ds.x - 1.0f;
+	float top = 1.0f - dr.y * 2 / ds.y;
+	float right = dr.z * 2 / ds.x - 1.0f;
+	float bottom = 1.0f - dr.w * 2 / ds.y;
 
 	GSVertexPT1 vertices[] =
 	{
-		{GSVector4(left, top, 0.5f, 1.0f), GSVector2(sRect.x, sRect.y)},
-		{GSVector4(right, top, 0.5f, 1.0f), GSVector2(sRect.z, sRect.y)},
-		{GSVector4(left, bottom, 0.5f, 1.0f), GSVector2(sRect.x, sRect.w)},
-		{GSVector4(right, bottom, 0.5f, 1.0f), GSVector2(sRect.z, sRect.w)},
+		{GSVector4(left, top, 0.5f, 1.0f), GSVector2(sr.x, sr.y)},
+		{GSVector4(right, top, 0.5f, 1.0f), GSVector2(sr.z, sr.y)},
+		{GSVector4(left, bottom, 0.5f, 1.0f), GSVector2(sr.x, sr.w)},
+		{GSVector4(right, bottom, 0.5f, 1.0f), GSVector2(sr.z, sr.w)},
 	};
 
 	for(size_t i = 0; i < countof(vertices); i++)
@@ -912,7 +911,7 @@ void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* 
 	// ps
 
 	PSSetSamplerState(linear ? &m_convert.ln : &m_convert.pt);
-	PSSetShaderResources(sTex, NULL);
+	PSSetShaderResources(st, NULL);
 	PSSetShader(ps, ps_cb, ps_cb_len);
 
 	//
@@ -924,31 +923,31 @@ void GSDevice9::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* 
 	EndScene();
 }
 
-void GSDevice9::DoMerge(GSTexture* sTex[2], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, bool slbg, bool mmod, const GSVector4& c)
+void GSDevice9::DoMerge(GSTexture* st[2], GSVector4* sr, GSTexture* dt, GSVector4* dr, bool slbg, bool mmod, const GSVector4& c)
 {
-	ClearRenderTarget(dTex, c);
+	ClearRenderTarget(dt, c);
 
-	if(sTex[1] && !slbg)
+	if(st[1] && !slbg)
 	{
-		StretchRect(sTex[1], sRect[1], dTex, dRect[1], m_merge.ps[0], NULL, true);
+		StretchRect(st[1], sr[1], dt, dr[1], m_merge.ps[0], NULL, true);
 	}
 
-	if(sTex[0])
+	if(st[0])
 	{
 		MergeConstantBuffer cb;
 
 		cb.BGColor = c;
 
-		StretchRect(sTex[0], sRect[0], dTex, dRect[0], m_merge.ps[mmod ? 1 : 0], (const float*)&cb, 1, &m_merge.bs, true);
+		StretchRect(st[0], sr[0], dt, dr[0], m_merge.ps[mmod ? 1 : 0], (const float*)&cb, 1, &m_merge.bs, true);
 	}
 }
 
-void GSDevice9::DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset)
+void GSDevice9::DoInterlace(GSTexture* st, GSTexture* dt, int shader, bool linear, float yoffset)
 {
-	GSVector4 s = GSVector4(dTex->GetSize());
+	GSVector4 s = GSVector4(dt->GetSize());
 
-	GSVector4 sRect(0, 0, 1, 1);
-	GSVector4 dRect(0.0f, yoffset, s.x, s.y + yoffset);
+	GSVector4 sr(0, 0, 1, 1);
+	GSVector4 dr(0.0f, yoffset, s.x, s.y + yoffset);
 
 	InterlaceConstantBuffer cb;
 
@@ -956,7 +955,7 @@ void GSDevice9::DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool l
 	cb.hH = (float)s.y / 2;
 	cb.fSaturation = m_fColorEnginePara;
 
-	StretchRect(sTex, sRect, dTex, dRect, m_interlace.ps[shader], (const float*)&cb, 1, linear);
+	StretchRect(st, sr, dt, dr, m_interlace.ps[shader], (const float*)&cb, 1, linear);
 }
 
 void GSDevice9::InitExternalFX()
@@ -964,7 +963,7 @@ void GSDevice9::InitExternalFX()
 	if (!ExShader_Compiled)
 	{
 		try {
-			CompileShader("shaders/GSdx.fx", "ps_main", NULL, &m_shaderfx.ps);
+			CompileShader("shader.fx", "ps_main", NULL, &m_shaderfx.ps);
 		}
 		catch (GSDXRecoverableError) {
 			printf("GSdx: failed to compile external post-processing shader. \n");
@@ -973,54 +972,21 @@ void GSDevice9::InitExternalFX()
 	}
 }
 
-void GSDevice9::DoExternalFX(GSTexture* sTex, GSTexture* dTex)
+void GSDevice9::DoExternalFX(GSTexture* st, GSTexture* dt)
 {
-	GSVector2i s = dTex->GetSize();
+	GSVector2i s = dt->GetSize();
 
-	GSVector4 sRect(0, 0, 1, 1);
-	GSVector4 dRect(0, 0, s.x, s.y);
+	GSVector4 sr(0, 0, 1, 1);
+	GSVector4 dr(0, 0, s.x, s.y);
 
 	ExternalFXConstantBuffer cb;
 	
 	InitExternalFX();
 
-	cb.xyFrame = GSVector2(s.x, s.y);
 	cb.rcpFrame = GSVector4(1.0f / s.x, 1.0f / s.y, 0.0f, 0.0f);
 	cb.rcpFrameOpt = GSVector4::zero();
 
-	StretchRect(sTex, sRect, dTex, dRect, m_shaderfx.ps, (const float*)&cb, 2, true);
-}
-
-void GSDevice9::InitCustomShader()
-{
-	if (!CustomShader_Compiled)
-	{
-		try {
-			CompileShader("shaders/shader.fx", "ps_main", NULL, &m_customshader.ps);
-		}
-		catch (GSDXRecoverableError) {
-			printf("GSdx: failed to compile custom shader. \n");
-		}
-		CustomShader_Compiled = true;
-	}
-}
-
-void GSDevice9::DoCustomShader(GSTexture* sTex, GSTexture* dTex)
-{
-	GSVector2i s = dTex->GetSize();
-
-	GSVector4 sRect(0, 0, 1, 1);
-	GSVector4 dRect(0, 0, s.x, s.y);
-
-	CustomShaderConstantBuffer cb;
-
-	InitCustomShader();
-
-	cb.xyFrame = GSVector2(s.x, s.y);
-	cb.rcpFrame = GSVector4(1.0f / s.x, 1.0f / s.y, 0.0f, 0.0f);
-	cb.rcpFrameOpt = GSVector4::zero();
-
-	StretchRect(sTex, sRect, dTex, dRect, m_customshader.ps, (const float*)&cb, 2, true);
+	StretchRect(st, sr, dt, dr, m_shaderfx.ps, (const float*)&cb, 2, true);
 }
 
 void GSDevice9::InitFXAA()
@@ -1037,12 +1003,12 @@ void GSDevice9::InitFXAA()
 	}
 }
 
-void GSDevice9::DoFXAA(GSTexture* sTex, GSTexture* dTex)
+void GSDevice9::DoFXAA(GSTexture* st, GSTexture* dt)
 {
-	GSVector2i s = dTex->GetSize();
+	GSVector2i s = dt->GetSize();
 
-	GSVector4 sRect(0, 0, 1, 1);
-	GSVector4 dRect(0, 0, s.x, s.y);
+	GSVector4 sr(0, 0, 1, 1);
+	GSVector4 dr(0, 0, s.x, s.y);
 
 	FXAAConstantBuffer cb;
 
@@ -1051,22 +1017,22 @@ void GSDevice9::DoFXAA(GSTexture* sTex, GSTexture* dTex)
 	cb.rcpFrame = GSVector4(1.0f / s.x, 1.0f / s.y, 0.0f, 0.0f);
 	cb.rcpFrameOpt = GSVector4::zero();
 
-	StretchRect(sTex, sRect, dTex, dRect, m_fxaa.ps, (const float*)&cb, 2, true);
+	StretchRect(st, sr, dt, dr, m_fxaa.ps, (const float*)&cb, 2, true);
 }
 
-void GSDevice9::DoShadeBoost(GSTexture* sTex, GSTexture* dTex)
+void GSDevice9::DoShadeBoost(GSTexture* st, GSTexture* dt)
 {
-	GSVector2i s = dTex->GetSize();
+	GSVector2i s = dt->GetSize();
 
-	GSVector4 sRect(0, 0, 1, 1);
-	GSVector4 dRect(0, 0, s.x, s.y);
+	GSVector4 sr(0, 0, 1, 1);
+	GSVector4 dr(0, 0, s.x, s.y);
 
 	ShadeBoostConstantBuffer cb;
 
 	cb.rcpFrame = GSVector4(1.0f / s.x, 1.0f / s.y, 0.0f, 0.0f);
 	cb.rcpFrameOpt = GSVector4::zero();
 
-	StretchRect(sTex, sRect, dTex, dRect, m_shadeboost.ps, (const float*)&cb, 1, true);
+	StretchRect(st, sr, dt, dr, m_shadeboost.ps, (const float*)&cb, 1, true);
 }
 
 void GSDevice9::SetupDATE(GSTexture* rt, GSTexture* ds, const GSVertexPT1* vertices, bool datm)
@@ -1300,11 +1266,11 @@ void GSDevice9::PSSetShaderResources(GSTexture* sr0, GSTexture* sr1)
 	PSSetShaderResource(2, NULL);
 }
 
-void GSDevice9::PSSetShaderResource(int i, GSTexture* sRect)
+void GSDevice9::PSSetShaderResource(int i, GSTexture* sr)
 {
 	IDirect3DTexture9* srv = NULL;
 
-	if(sRect) srv = *(GSTexture9*)sRect;
+	if(sr) srv = *(GSTexture9*)sr;
 
 	if(m_state.ps_srvs[i] != srv)
 	{

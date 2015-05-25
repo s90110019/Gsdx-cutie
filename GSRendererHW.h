@@ -36,12 +36,6 @@ private:
 	bool m_reset;
 	int m_upscale_multiplier;
 	int m_userhacks_skipdraw;
-	int m_HDmode;
-	int m_customhdrev;
-	int m_scalex;
-	int m_scaley;
-	
-	bool m_userhacks_align_sprite_X;
 	
 	#pragma region hacks
 
@@ -49,20 +43,13 @@ private:
 	typedef void (GSRendererHW::*OO_Ptr)();
 	typedef bool (GSRendererHW::*CU_Ptr)();
 
-	bool OI_DevilMayCry3(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_SakigakeOtokojuku(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_ElementalGerad(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_ShadowHearts2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Ringoftheking3(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_FFXII(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_FFX(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_MetalSlug6(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_GodOfWar(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_GodOfWar2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_SimpsonsGame(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_RozenMaidenGebetGarden(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_Siren(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_HauntingGround(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_SpidermanWoS(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_TyTasmanianTiger(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_DigimonRumbleArena2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
@@ -74,20 +61,6 @@ private:
 	bool OI_SpyroEternalNight(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_TalesOfLegendia(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_SMTNocturne(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_PoisonPink(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Simple2000Vol15(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Mercenaries2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Kof98um(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Simple2000Vol55(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Simple2000Vol30(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_FD18(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Onimusha2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Okami(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_SilentHillOrigins(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_FFVIIDoC(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_JusticeLeagueHeros(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Growlanser6(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
-	bool OI_Black(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_PointListPalette(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	void OO_DBZBT2();
 	void OO_MajokkoALaMode2();
@@ -158,18 +131,10 @@ private:
 
 	#pragma endregion
 
-	int Interpolate_UV(float alpha, int t0, int t1);
-	float alpha0(int L, int X0, int X1);
-	float alpha1(int L, int X0, int X1);
-
-	template <bool linear> void RoundSpriteOffset();
-
 protected:
 	GSTextureCache* m_tc;
 
 	virtual void DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* tex) = 0;
-
-	int m_userhacks_round_sprite_offset;
 
 public:
 	GSRendererHW(GSTextureCache* tc);

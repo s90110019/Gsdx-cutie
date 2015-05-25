@@ -49,21 +49,10 @@ public:
 class ExternalFXConstantBuffer
 {
 public:
-	GSVector2 xyFrame;
 	GSVector4 rcpFrame;
 	GSVector4 rcpFrameOpt;
 
 	ExternalFXConstantBuffer() { memset(this, 0, sizeof(*this)); }
-};
-
-class CustomShaderConstantBuffer
-{
-public:
-	GSVector2 xyFrame;
-	GSVector4 rcpFrame;
-	GSVector4 rcpFrameOpt;
-
-	CustomShaderConstantBuffer() { memset(this, 0, sizeof(*this)); }
 };
 
 class FXAAConstantBuffer
@@ -91,7 +80,7 @@ class GSDevice : public GSAlignedClass<32>
 	list<GSTexture*> m_pool;
 
 protected:
-	float m_fColorEnginePara;	//Output color saturation;
+  float m_fColorEnginePara;	//Output color saturation;
 	GSWnd* m_wnd;
 	bool m_vsync;
 	bool m_rbswapped;
@@ -100,7 +89,6 @@ protected:
 	GSTexture* m_weavebob;
 	GSTexture* m_blend;
 	GSTexture* m_shaderfx;
-	GSTexture* m_customshader;
 	GSTexture* m_fxaa;
 	GSTexture* m_shadeboost;
 	GSTexture* m_1x1;
@@ -112,12 +100,11 @@ protected:
 	virtual GSTexture* CreateSurface(int type, int w, int h, bool msaa, int format) = 0;
 	virtual GSTexture* FetchSurface(int type, int w, int h, bool msaa, int format);
 
-	virtual void DoMerge(GSTexture* sTex[2], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, bool slbg, bool mmod, const GSVector4& c) = 0;
-	virtual void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset) = 0;
-	virtual void DoFXAA(GSTexture* sTex, GSTexture* dTex) {}
-	virtual void DoShadeBoost(GSTexture* sTex, GSTexture* dTex) {}
-	virtual void DoExternalFX(GSTexture* sTex, GSTexture* dTex) {}
-	virtual void DoCustomShader(GSTexture* sTex, GSTexture* dTex) {}
+	virtual void DoMerge(GSTexture* st[2], GSVector4* sr, GSTexture* dt, GSVector4* dr, bool slbg, bool mmod, const GSVector4& c) = 0;
+	virtual void DoInterlace(GSTexture* st, GSTexture* dt, int shader, bool linear, float yoffset) = 0;
+	virtual void DoFXAA(GSTexture* st, GSTexture* dt) {}
+	virtual void DoShadeBoost(GSTexture* st, GSTexture* dt) {}
+	virtual void DoExternalFX(GSTexture* st, GSTexture* dt) {}
 
 public:
 	GSDevice();
@@ -131,7 +118,7 @@ public:
 	virtual bool Reset(int w, int h);
 	virtual bool IsLost(bool update = false) {return false;}
 	virtual void Present(const GSVector4i& r, int shader);
-	virtual void Present(GSTexture* sTex, GSTexture* dTex, const GSVector4& dRect, int shader = 0);
+	virtual void Present(GSTexture* st, GSTexture* dt, const GSVector4& dr, int shader = 0);
 	virtual void Flip() {}
 
 	virtual void SetVSync(bool enable) {m_vsync = enable;}
@@ -154,25 +141,28 @@ public:
 
 	virtual GSTexture* Resolve(GSTexture* t) {return NULL;}
 
-	virtual GSTexture* CopyOffscreen(GSTexture* src, const GSVector4& sRect, int w, int h, int format = 0, int ps_shader = 0) {return NULL;}
+	virtual GSTexture* CopyOffscreen(GSTexture* src, const GSVector4& sr, int w, int h, int format = 0) {return NULL;}
 
-	virtual void CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r) {}
-	virtual void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, int shader = 0, bool linear = true) {}
+	virtual void CopyRect(GSTexture* st, GSTexture* dt, const GSVector4i& r) {}
+	virtual void StretchRect(GSTexture* st, const GSVector4& sr, GSTexture* dt, const GSVector4& dr, int shader = 0, bool linear = true) {}
 
-	void StretchRect(GSTexture* sTex, GSTexture* dTex, const GSVector4& dRect, int shader = 0, bool linear = true);
+	void StretchRect(GSTexture* st, GSTexture* dt, const GSVector4& dr, int shader = 0, bool linear = true);
 
 	virtual void PSSetShaderResources(GSTexture* sr0, GSTexture* sr1) {}
-	virtual void PSSetShaderResource(int i, GSTexture* sRect) {}
+	virtual void PSSetShaderResource(int i, GSTexture* sr) {}
 	virtual void OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i* scissor = NULL) {}
+
+	// Used for opengl multithread hack
+	virtual void AttachContext() {}
+	virtual void DetachContext() {}
 
 	GSTexture* GetCurrent();
 
-	void Merge(GSTexture* sTex[2], GSVector4* sRect, GSVector4* dRect, const GSVector2i& fs, bool slbg, bool mmod, const GSVector4& c);
+	void Merge(GSTexture* st[2], GSVector4* sr, GSVector4* dr, const GSVector2i& fs, bool slbg, bool mmod, const GSVector4& c);
 	void Interlace(const GSVector2i& ds, int field, int mode, float yoffset);
 	void FXAA();
 	void ShadeBoost();
 	void ExternalFX();
-	void CustomShader();
 
 	bool ResizeTexture(GSTexture** t, int w, int h);
 
@@ -203,7 +193,7 @@ struct GSAdapter
 	GSAdapter(const DXGI_ADAPTER_DESC1 &desc_dxgi);
 	GSAdapter(const D3DADAPTER_IDENTIFIER9 &desc_d3d9);
 #endif
-#ifdef __linux__
+#ifdef _LINUX
 	// TODO
 #endif
 };

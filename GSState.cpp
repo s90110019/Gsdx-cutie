@@ -23,10 +23,6 @@
 #include "GSState.h"
 #include "GSdx.h"
 
-#ifdef __linux__
-#include <sys/stat.h> // mkdir
-#endif
-
 //#define Offset_ST  // Fixes Persona3 mini map alignment which is off even in software rendering
 
 GSState::GSState()
@@ -34,7 +30,6 @@ GSState::GSState()
 	, m_mt(false)
 	, m_irq(NULL)
 	, m_path3hack(0)
-	, m_init_read_fifo_supported(false)
 	, m_q(1.0f)
 	, m_texflush(true)
 	, m_vt(this)
@@ -48,25 +43,12 @@ GSState::GSState()
 	s_n = 0;
 	s_dump = !!theApp.GetConfig("dump", 0);
 	s_save = !!theApp.GetConfig("save", 0);
-	s_savet = !!theApp.GetConfig("savet", 0);
 	s_savez = !!theApp.GetConfig("savez", 0);
 	s_saven = theApp.GetConfig("saven", 0);
-	s_savel = theApp.GetConfig("savel", 5000);
-#ifdef __linux__
-	if (s_dump) {
-		mkdir("/tmp/GS_HW_dump", 0777);
-		mkdir("/tmp/GS_SW_dump", 0777);
-	}
-#endif
-
-	//s_dump = 1;
-	//s_save = 1;
-	//s_savez = 1;
 
 	UserHacks_AggressiveCRC = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_AggressiveCRC", 0) : 0;
 	UserHacks_DisableCrcHacks = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig( "UserHacks_DisableCrcHacks", 0 ) : 0;
 	UserHacks_WildHack = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_WildHack", 0) : 0;
-	UserHacks_AutoSkipDrawDepth = !!theApp.GetConfig("UserHacks", 0) ? theApp.GetConfig("UserHacks_AutoSkipDrawDepth", 1) : false;
 
 	memset(&m_v, 0, sizeof(m_v));
 	memset(&m_vertex, 0, sizeof(m_vertex));
@@ -352,7 +334,7 @@ GSVector4i GSState::GetDisplayRect(int i)
 	r.top = m_regs->DISP[i].DISPLAY.DY / (m_regs->DISP[i].DISPLAY.MAGV + 1);
 	r.right = r.left + (m_regs->DISP[i].DISPLAY.DW + 1) / (m_regs->DISP[i].DISPLAY.MAGH + 1);
 	r.bottom = r.top + (m_regs->DISP[i].DISPLAY.DH + 1) / (m_regs->DISP[i].DISPLAY.MAGV + 1);
-	
+
 	return r;
 }
 
@@ -366,6 +348,7 @@ GSVector4i GSState::GetFrameRect(int i)
 
 	int w = r.width();
 	int h = r.height();
+
 	//Fixme: These games have an extra black bar at bottom of screen
 	if((m_game.title == CRC::DevilMayCry3 || m_game.title == CRC::SkyGunner || m_game.title == CRC::VF4 || m_game.title == CRC::SeintoSeiya) && (m_game.region == CRC::US || m_game.region == CRC::JP || m_game.region == CRC:: NoRegion || m_game.region == CRC::CH))
 	{
@@ -379,29 +362,14 @@ GSVector4i GSState::GetFrameRect(int i)
 	r.top = m_regs->DISP[i].DISPFB.DBY;
 	r.right = r.left + w;
 	r.bottom = r.top + h;
-
-	/*if (GetKeyState(VK_SHIFT))
-	{
-		r.left = m_regs->DISP[i].DISPFB.DBX;
-		r.top = m_regs->DISP[i].DISPFB.DBY + 40;
-		r.right = r.left + w;
-		r.bottom = r.top + h - 40;
-	}
-	if (GetKeyState(VK_CONTROL))
-	{
-		r.left = m_regs->DISP[i].DISPFB.DBX;
-		r.top = m_regs->DISP[i].DISPFB.DBY;
-		r.right = r.left + w;
-		r.bottom = r.top + h;
-	}*/
 	
 	/*static GSVector4i old_r = (GSVector4i) 0;
 	if ((old_r.left != r.left) || (old_r.right != r.right) || (old_r.top != r.top) || (old_r.right != r.right)){
 		printf("w %d  h %d  left %d  top %d  right %d  bottom %d\n",w,h,r.left,r.top,r.right,r.bottom);
 	}
 	old_r = r;*/
+
 	return r;
-	
 }
 
 GSVector2i GSState::GetDeviceSize(int i)
@@ -412,7 +380,7 @@ GSVector2i GSState::GetDeviceSize(int i)
 
 	// TODO2: pal games at 60Hz
 
-	if (i < 0) i = IsEnabled(1) ? 1 : 0;
+	if(i < 0) i = IsEnabled(1) ? 1 : 0;
 
 	GSVector4i r = GetDisplayRect(i);
 
@@ -421,31 +389,30 @@ GSVector2i GSState::GetDeviceSize(int i)
 
 	/*if(h == 2 * 416 || h == 2 * 448 || h == 2 * 512)
 	{
-	h /= 2;
+		h /= 2;
 	}
 	else
 	{
-	h = (m_regs->SMODE1.CMOD & 1) ? 512 : 448;
+		h = (m_regs->SMODE1.CMOD & 1) ? 512 : 448;
 	}*/
 
 	//Fixme : Just slightly better than the hack above
-	if (h >= 800)
-	{
-		
-	}
-	else if (m_regs->SMODE2.INT && m_regs->SMODE2.FFMD && h > 1)
+	if(m_regs->SMODE2.INT && m_regs->SMODE2.FFMD && h > 1)
 	{
 		if (IsEnabled(0) || IsEnabled(1))
 		{
 			h >>= 1;
 		}
 	}
+
 	//Fixme: These games elude the code above, worked with the old hack
 	else if(m_game.title == CRC::SilentHill2 || m_game.title == CRC::SilentHill3)
 	{
 		h /= 2; 
 	}
+
 	return GSVector2i(w, h);
+
 }
 
 bool GSState::IsEnabled(int i)
@@ -499,12 +466,12 @@ void GSState::GIFPackedRegHandlerRGBA(const GIFPackedReg* RESTRICT r)
 
 void GSState::GIFPackedRegHandlerSTQ(const GIFPackedReg* RESTRICT r)
 {
-	GSVector4i sTex = GSVector4i::loadl(&r->u64[0]);
+	GSVector4i st = GSVector4i::loadl(&r->u64[0]);
 	GSVector4i q = GSVector4i::loadl(&r->u64[1]);
 
-	GSVector4i::storel(&m_v.ST, sTex);
+	GSVector4i::storel(&m_v.ST, st);
 
-	q = q.blend8(GSVector4i::cast(GSVector4::m_one), q == GSVector4i::zero()); // character shadow in Vexx, q = 0 (sTex also 0 on the first 16 vertices), setting it to 1.0f to avoid div by zero later
+	q = q.blend8(GSVector4i::cast(GSVector4::m_one), q == GSVector4i::zero()); // character shadow in Vexx, q = 0 (st also 0 on the first 16 vertices), setting it to 1.0f to avoid div by zero later
 	
 	*(int*)&m_q = GSVector4i::store(q); 
 	
@@ -590,7 +557,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, ui
 
 	while(r < r_end)
 	{
-		GSVector4i sTex = GSVector4i::loadl(&r[0].u64[0]);
+		GSVector4i st = GSVector4i::loadl(&r[0].u64[0]);
 		GSVector4i q = GSVector4i::loadl(&r[0].u64[1]);
 		GSVector4i rgba = (GSVector4i::load<false>(&r[1]) & GSVector4i::x000000ff()).ps32().pu16();
 		/*
@@ -601,7 +568,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, ui
 		*/
 		q = q.blend8(GSVector4i::cast(GSVector4::m_one), q == GSVector4i::zero()); // see GIFPackedRegHandlerSTQ
 
-		m_v.m[0] = sTex.upl64(rgba.upl32(q)); // TODO: only store the last one
+		m_v.m[0] = st.upl64(rgba.upl32(q)); // TODO: only store the last one
 
 		GSVector4i xy = GSVector4i::loadl(&r[2].u64[0]);
 		GSVector4i zf = GSVector4i::loadl(&r[2].u64[1]);
@@ -627,7 +594,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, uin
 
 	while(r < r_end)
 	{
-		GSVector4i sTex = GSVector4i::loadl(&r[0].u64[0]);
+		GSVector4i st = GSVector4i::loadl(&r[0].u64[0]);
 		GSVector4i q = GSVector4i::loadl(&r[0].u64[1]);
 		GSVector4i rgba = (GSVector4i::load<false>(&r[1]) & GSVector4i::x000000ff()).ps32().pu16();
 		/*
@@ -638,7 +605,7 @@ void GSState::GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, uin
 		*/
 		q = q.blend8(GSVector4i::cast(GSVector4::m_one), q == GSVector4i::zero()); // see GIFPackedRegHandlerSTQ
 
-		m_v.m[0] = sTex.upl64(rgba.upl32(q)); // TODO: only store the last one
+		m_v.m[0] = st.upl64(rgba.upl32(q)); // TODO: only store the last one
 
 		GSVector4i xy = GSVector4i::loadl(&r[2].u64[0]);
 		GSVector4i z = GSVector4i::loadl(&r[2].u64[1]);
@@ -879,7 +846,7 @@ template<int i> void GSState::GIFRegHandlerTEX0(const GIFReg* RESTRICT r)
 
 	if((TEX0.TBW & 1) && (TEX0.PSM == PSM_PSMT8 || TEX0.PSM == PSM_PSMT4))
 	{
-		ASSERT(TEX0.TBW == 1); // TODO // Bouken Jidai Katsugeki Goemon
+		ASSERT(TEX0.TBW == 1); // TODO
 
 		TEX0.TBW &= ~1; // GS User 2.6
 	}
@@ -978,14 +945,14 @@ template<int i> void GSState::GIFRegHandlerTEX2(const GIFReg* RESTRICT r)
 
 template<int i> void GSState::GIFRegHandlerXYOFFSET(const GIFReg* RESTRICT r)
 {
-	GSVector4i off = (GSVector4i)r->XYOFFSET & GSVector4i::x0000ffff();
+	GSVector4i o = (GSVector4i)r->XYOFFSET & GSVector4i::x0000ffff();
 
-	if(!off.eq(m_env.CTXT[i].XYOFFSET))
+	if(!o.eq(m_env.CTXT[i].XYOFFSET))
 	{
 		Flush();
 	}
 
-	m_env.CTXT[i].XYOFFSET = off;
+	m_env.CTXT[i].XYOFFSET = o;
 
 	m_env.CTXT[i].UpdateScissor();
 
@@ -1542,31 +1509,6 @@ void GSState::Write(const uint8* mem, int len)
 	m_mem.m_clut.Invalidate();
 }
 
-void GSState::InitReadFIFO(uint8* mem, int len)
-{
-	if(len <= 0) return;
-
-	// Allow to keep compatibility with older PCSX2
-	m_init_read_fifo_supported = true;
-
-	int sx = m_env.TRXPOS.SSAX;
-	int sy = m_env.TRXPOS.SSAY;
-	int w = m_env.TRXREG.RRW;
-	int h = m_env.TRXREG.RRH;
-
-	// printf("Read len=%d SBP=%05x SBW=%d SPSM=%d SSAX=%d SSAY=%d RRW=%d RRH=%d\n", len, (int)m_env.BITBLTBUF.SBP, (int)m_env.BITBLTBUF.SBW, (int)m_env.BITBLTBUF.SPSM, sx, sy, w, h);
-
-	if(!m_tr.Update(w, h, GSLocalMemory::m_psm[m_env.BITBLTBUF.SPSM].trbpp, len))
-	{
-		return;
-	}
-
-	if(m_tr.x == sx && m_tr.y == sy)
-	{
-		InvalidateLocalMem(m_env.BITBLTBUF, GSVector4i(sx, sy, sx + w, sy + h));
-	}
-}
-
 void GSState::Read(uint8* mem, int len)
 {
 	if(len <= 0) return;
@@ -1583,12 +1525,9 @@ void GSState::Read(uint8* mem, int len)
 		return;
 	}
 
-	if(!m_init_read_fifo_supported)
+	if(m_tr.x == sx && m_tr.y == sy)
 	{
-		if(m_tr.x == sx && m_tr.y == sy)
-		{
-			InvalidateLocalMem(m_env.BITBLTBUF, GSVector4i(sx, sy, sx + w, sy + h));
-		}
+		InvalidateLocalMem(m_env.BITBLTBUF, GSVector4i(sx, sy, sx + w, sy + h));
 	}
 
 	m_mem.ReadImageX(m_tr.x, m_tr.y, mem, len, m_env.BITBLTBUF, m_env.TRXPOS, m_env.TRXREG);
@@ -2349,20 +2288,20 @@ void GSState::GrowVertexBuffer()
 	GSVertex* vertex = (GSVertex*)_aligned_malloc(sizeof(GSVertex) * maxcount, 32);
 	uint32* index = (uint32*)_aligned_malloc(sizeof(uint32) * maxcount * 3, 32); // worst case is slightly less than vertex number * 3
 
-	if(vertex == NULL || index == NULL)
+	if (!vertex || !index)
 	{
 		printf("GSdx: failed to allocate %d bytes for verticles and %d for indices.\n", sizeof(GSVertex) * maxcount, sizeof(uint32) * maxcount * 3);
 		throw GSDXError();
 	}
 
-	if(m_vertex.buff != NULL)
+	if (m_vertex.buff != NULL)
 	{
 		memcpy(vertex, m_vertex.buff, sizeof(GSVertex) * m_vertex.tail);
 
 		_aligned_free(m_vertex.buff);
 	}
 
-	if(m_index.buff != NULL)
+	if (m_index.buff != NULL)
 	{
 		memcpy(index, m_index.buff, sizeof(uint32) * m_index.tail);
 		
@@ -2458,8 +2397,6 @@ __forceinline void GSState::VertexKick(uint32 skip)
 			pmin = v2.min_i16(v1.min_i16(v3));
 			pmax = v2.max_i16(v1.max_i16(v3));
 			break;
-		default:
-			break;
 		}
 
 		GSVector4i test = pmax.lt16(m_scissor) | pmin.gt16(m_scissor.zwzwl()); 
@@ -2471,8 +2408,6 @@ __forceinline void GSState::VertexKick(uint32 skip)
 		case GS_TRIANGLEFAN:
 		case GS_SPRITE:
 			test |= m_nativeres ? pmin.eq16(pmax).zwzwl() : pmin.eq16(pmax);
-			break;
-		default:
 			break;
 		}
 
@@ -2496,8 +2431,6 @@ __forceinline void GSState::VertexKick(uint32 skip)
 			test |= GSVector4i::cast(cross == cross.yxwz());
 			*/
 			test = (test | v3 == v1) | (v1 == v2 | v3 == v2); 
-			break;
-		default:
 			break;
 		}
 		
@@ -2667,14 +2600,14 @@ void GSState::GetTextureMinMax(GSVector4i& r, const GIFRegTEX0& TEX0, const GIFR
 
 	if(wms != CLAMP_REGION_REPEAT || wmt != CLAMP_REGION_REPEAT)
 	{
-		GSVector4 sTex = m_vt.m_min.t.xyxy(m_vt.m_max.t);
+		GSVector4 st = m_vt.m_min.t.xyxy(m_vt.m_max.t);
 
 		if(linear)
 		{
-			sTex += GSVector4(-0.5f, 0.5f).xxyy();
+			st += GSVector4(-0.5f, 0.5f).xxyy();
 		}
 
-		GSVector4i uv = GSVector4i(sTex.floor());
+		GSVector4i uv = GSVector4i(st.floor());
 
 		GSVector4i u, v;
 
@@ -3037,45 +2970,36 @@ bool GSC_Okami(const GSFrameInfo& fi, int& skip)
 
 bool GSC_MetalGearSolid3(const GSFrameInfo& fi, int& skip)
 {
-	if (!g_aggressive)
+	if(skip == 0)
 	{
-		if (!fi.TME && fi.FBP == 0x2000 && fi.TBP0 == 0x2000 && fi.TZTST == 1 && fi.FBMSK == 0 && (GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM))) // pal
+		if(fi.TME && fi.FBP == 0x02000 && fi.FPSM == PSM_PSMCT32 && (fi.TBP0 == 0x00000 || fi.TBP0 == 0x01000) && fi.TPSM == PSM_PSMCT24)
 		{
-			skip = 2;
+			skip = 1000; // 76, 79
+		}
+		else if(fi.TME && fi.FBP == 0x02800 && fi.FPSM == PSM_PSMCT24 && (fi.TBP0 == 0x00000 || fi.TBP0 == 0x01000) && fi.TPSM == PSM_PSMCT32)
+		{
+			skip = 1000; // 69
 		}
 	}
 	else
 	{
-		if (skip == 0)
+		if(!fi.TME && (fi.FBP == 0x00000 || fi.FBP == 0x01000) && fi.FPSM == PSM_PSMCT32)
 		{
-			if (fi.TME && fi.FBP == 0x02000 && fi.FPSM == PSM_PSMCT32 && (fi.TBP0 == 0x00000 || fi.TBP0 == 0x01000) && fi.TPSM == PSM_PSMCT24)
-			{
-				skip = 1000; // 76, 79
-			}
-			else if (fi.TME && fi.FBP == 0x02800 && fi.FPSM == PSM_PSMCT24 && (fi.TBP0 == 0x00000 || fi.TBP0 == 0x01000) && fi.TPSM == PSM_PSMCT32)
-			{
-				skip = 1000; // 69
-			}
+			skip = 0;
 		}
-		else
+		else if(!fi.TME && fi.FBP == fi.TBP0 && fi.TBP0 == 0x2000 && fi.FPSM == PSM_PSMCT32 && fi.TPSM == PSM_PSMCT24)
 		{
-			if (!fi.TME && (fi.FBP == 0x00000 || fi.FBP == 0x01000) && fi.FPSM == PSM_PSMCT32)
+			if(g_crc_region == CRC::US || g_crc_region == CRC::JP || g_crc_region == CRC::KO)
 			{
-				skip = 0;
+				skip = 119;	//ntsc
 			}
-			else if (!fi.TME && fi.FBP == fi.TBP0 && fi.TBP0 == 0x2000 && fi.FPSM == PSM_PSMCT32 && fi.TPSM == PSM_PSMCT24)
+			else
 			{
-				if (g_crc_region == CRC::US || g_crc_region == CRC::JP || g_crc_region == CRC::KO)
-				{
-					skip = 119;	//ntsc
-				}
-				else
-				{
-					skip = 136;	//pal
-				}
+				skip = 136;	//pal
 			}
 		}
 	}
+
 	return true;
 }
 
@@ -3196,12 +3120,29 @@ bool GSC_SoTC(const GSFrameInfo& fi, int& skip)
             // Not needed anymore? What did it fix anyway? (rama)
     if(skip == 0)
     {
-		if (g_aggressive && fi.TME && (fi.FBP == 0x0000 || fi.FBP == 0x1c00 || fi.FBP == 0x3c00) && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT32 &&			(fi.TBP0 == 0x3800 || fi.TBP0 == 0x3880) && fi.FBMSK == 0x0)
-		{
-			skip = 1;
-		}
-	}
-	
+            if(g_aggressive && fi.TME /*&& fi.FBP == 0x03d80*/ && fi.FPSM == 0 && fi.TBP0 == 0x03fc0 && fi.TPSM == 1)
+            {
+                    skip = 48;	//removes sky bloom
+            }
+            /*
+            if(fi.TME && fi.FBP == 0x02b80 && fi.FPSM == PSM_PSMCT24 && fi.TBP0 == 0x01e80 && fi.TPSM == PSM_PSMCT24)
+            {
+                    skip = 9;
+            }
+            else if(fi.TME && fi.FBP == 0x01c00 && fi.FPSM == PSM_PSMCT32 && fi.TBP0 == 0x03800 && fi.TPSM == PSM_PSMCT32)
+            {
+                    skip = 8;
+            }
+            else if(fi.TME && fi.FBP == 0x01e80 && fi.FPSM == PSM_PSMCT32 && fi.TBP0 == 0x03880 && fi.TPSM == PSM_PSMCT32)
+            {
+                    skip = 8;
+            }*/
+    }
+
+
+     
+
+
 	return true;
 }
 
@@ -3408,14 +3349,14 @@ bool GSC_ResidentEvil4(const GSFrameInfo& fi, int& skip)
 
 bool GSC_SacredBlaze(const GSFrameInfo& fi, int& skip)
 {
-	/*//Fix Sacred Blaze rendering glitches
+	//Fix Sacred Blaze rendering glitches
 	if(skip == 0)
 	{
 		if(fi.TME && (fi.FBP==0x0000 || fi.FBP==0x0e00) && (fi.TBP0==0x2880 || fi.TBP0==0x2a80 ) && fi.FPSM==fi.TPSM && fi.TPSM == PSM_PSMCT32 && fi.TPSM ==0 && fi.FBMSK == 0x0)
 		{
 			skip = 1;
 		}
-	}*/
+	}
 	return true;
 }
 
@@ -3423,7 +3364,7 @@ bool GSC_Spartan(const GSFrameInfo& fi, int& skip)
 {
 	if(skip == 0)
 	{
-		if(g_crc_region == CRC::EU &&fi.TME && fi.FBP == 0x02000 && fi.FPSM == PSM_PSMCT32 && fi.TBP0 == 0x00000 && fi.TPSM == PSM_PSMCT32)
+		if(g_crc_region == CRC::NoRegion &&fi.TME && fi.FBP == 0x02000 && fi.FPSM == PSM_PSMCT32 && fi.TBP0 == 0x00000 && fi.TPSM == PSM_PSMCT32)
 		{
 			skip = 107;
 		}
@@ -3577,12 +3518,12 @@ bool GSC_GodOfWar2(const GSFrameInfo& fi, int& skip)
 			{
 				skip = 1000; // shadows
 			}
-			/*if((fi.FBP == 0x00100 || fi.FBP == 0x02100) && fi.FPSM == PSM_PSMCT32 && (fi.TBP0 & 0x03000) == 0x03000
+			if((fi.FBP == 0x00100 || fi.FBP == 0x02100) && fi.FPSM == PSM_PSMCT32 && (fi.TBP0 & 0x03000) == 0x03000
 				&& (fi.TPSM == PSM_PSMT8 || fi.TPSM == PSM_PSMT4)
 				&& ((fi.TZTST == 2 && fi.FBMSK == 0x00FFFFFF) || (fi.TZTST == 1 && fi.FBMSK == 0x00FFFFFF) || (fi.TZTST == 3 && fi.FBMSK == 0xFF000000)))
 			{
 					skip = 1; // wall of fog
-			}*/
+			}
 			else if(g_aggressive && fi.TPSM == PSM_PSMCT24 && fi.TME && (fi.FBP ==0x1300 ) && (fi.TBP0 ==0x0F00 || fi.TBP0 ==0x1300 || fi.TBP0==0x2b00)) // || fi.FBP == 0x0100
 			{
 				skip = 1; // global haze/halo
@@ -3795,54 +3736,34 @@ bool GSC_RadiataStories(const GSFrameInfo& fi, int& skip)
 
 bool GSC_HauntingGround(const GSFrameInfo& fi, int& skip)
 {
-	if (fi.TME)
+	if(skip == 0)
 	{
-		if (fi.FBP == 0x3000 && fi.TBP0 == 0x3380)
-		{
-			skip = 5; // bloom
-		}
-		else if (fi.FBP == 0x2200 && fi.TBP0 == 0x3a80 && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT32)
-		{
-			skip = 1; //blur
-		}
-		else if ((fi.TPSM == PSM_PSMZ32 || fi.TPSM == PSM_PSMZ24 || fi.TPSM == PSM_PSMZ16 || fi.TPSM == PSM_PSMZ16S) ||
-			// General, often problematic post processing
-			(GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM)))
+		if(fi.TME && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT16S && fi.FBMSK == 0x03FFF)
 		{
 			skip = 1;
 		}
-
-	}
-	else if (!fi.TME)
-	{
-		if ((fi.FBP == 0x3000 || fi.FBP == 0x2200) && (fi.TBP0 == 0x0000 || fi.TBP0 == 0x3000 || fi.TBP0 == 0x3b00 || fi.TBP0 == 0x3c00 || fi.TBP0 == 0x3d00) && fi.FBMSK == 0)
+		else if(fi.TME && fi.FBP == 0x3000 && fi.TBP0 == 0x3380)
 		{
-			skip = 1; //light
+			skip = 1; // bloom
 		}
-	}
-	if (fi.TME && fi.FBP == 0x2200 && fi.TBP0 == 0x3000 && fi.FBMSK == 0 && fi.FPSM == 0 && fi.TPSM == PSM_PSMT8H)
-	{
-		skip = 0;
-	}
-	if (g_aggressive && fi.TME && fi.FBP == 0x2200 && (fi.TBP0 == 0x3000) && fi.TPSM == PSM_PSMT8H && fi.FBMSK == 0 && fi.FPSM == 0)
-	{
-		skip = 1;
-	}
-	if (!fi.TME && (fi.FBP == 0x2200) && (fi.TBP0 == 0x0000 || fi.TBP0 == 0x2200 || fi.TBP0 == 0x3000) && fi.FBMSK == 0 && fi.TPSM == PSM_PSMCT32)
-	{
-		skip = 0;
-	}
-	if (!fi.TME && fi.FBP == 0x2200 && fi.TPSM == PSM_PSMT4 && fi.FBMSK == 0 && fi.FPSM == 0)
-	{
-		skip = 0;
-	}
-	if (fi.FBP == 0x3000 && (fi.TBP0 == 0x1400) && fi.TPSM == PSM_PSMZ24)
-	{
-		skip = 0;
-	}
-	if (fi.FBP == 0x2200 && fi.TBP0 == 0x3c00 && fi.TPSM == PSM_PSMT8 && fi.FBMSK ==0)
-	{
-	skip = 0;
+		else if(fi.TME && (fi.FBP ==0x2200) && (fi.TBP0 ==0x3a80) && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT32)
+		{
+			skip = 1;
+		}
+		else if(fi.FBP ==0x2200 && fi.TBP0==0x3000 && fi.TPSM == PSM_PSMT8H && fi.FBMSK == 0)
+		{
+			skip = 1;
+		}
+		else if(fi.TME)
+		{
+			// depth textures (bully, mgs3s1 intro, Front Mission 5)
+			if( (fi.TPSM == PSM_PSMZ32 || fi.TPSM == PSM_PSMZ24 || fi.TPSM == PSM_PSMZ16 || fi.TPSM == PSM_PSMZ16S) ||
+				// General, often problematic post processing
+				(GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM)) )
+			{
+				skip = 1;
+			}
+		}
 	}
 
 	return true;
@@ -4329,29 +4250,25 @@ bool GSC_Castlevania(const GSFrameInfo& fi, int& skip)
 
 bool GSC_Black(const GSFrameInfo& fi, int& skip)
 {
-	if (skip == 0)
+	if(skip == 0)
 	{
-		if (fi.TME)
+		if(fi.TME /*&& (fi.FBP == 0x00000 || fi.FBP == 0x008c0)*/ && fi.FPSM == PSM_PSMCT16 && (fi.TBP0 == 0x01a40 || fi.TBP0 == 0x01b80 || fi.TBP0 == 0x030c0) && fi.TPSM == PSM_PSMZ16 || (GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM)))
 		{
-			if ((fi.TPSM == PSM_PSMZ32 || fi.TPSM == PSM_PSMZ24 || fi.TPSM == PSM_PSMZ16 || fi.TPSM == PSM_PSMZ16S) ||
-				(GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM)))
-			{
-				skip = 1;
-			}
+			skip = 5;
 		}
-		if (fi.TME && (fi.FBP == 0x08c0 || fi.FBP == 0x0a00) && fi.FPSM == 0 && (fi.TBP0 == 0x2bc0 || fi.TBP0 == 0x3200) && fi.TPSM == PSM_PSMCT32 && fi.FPSM == fi.TPSM && fi.TZTST == 1)
-		{
-			skip = 1;
-		}
-		/*if(fi.TME && (fi.FBP==0x08c0 ) && sharedBits && fi.FPSM==2)
-		{
-			skip =1; //±ø¯¾
-		}
-		if(fi.TME && (fi.FBP==0x36a0 || fi.FBP==0x2d60) &&fi.FPSM== 0 )
-		{
-			skip =1; //¬¯¥ú
-		}*/
 	}
+	else
+	{
+		if(fi.TME && (fi.FBP == 0x00000 || fi.FBP == 0x008c0 || fi.FBP == 0x0a00 ) && fi.FPSM == PSM_PSMCT32 && fi.TPSM == PSM_PSMT4)
+		{
+			skip = 0;
+		}
+		else if(!fi.TME && fi.FBP == fi.TBP0 && fi.FPSM == PSM_PSMCT32 && fi.TPSM == PSM_PSMT8H)
+		{
+			skip = 0;
+		}
+	}
+	
 	return true;
 }
 
@@ -4468,7 +4385,7 @@ bool GSC_DevilMayCry3(const GSFrameInfo& fi, int& skip)
 	{
 		if(fi.TME && fi.FBP == 0x01800 && fi.FPSM == PSM_PSMCT16 && fi.TBP0 == 0x01000 && fi.TPSM == PSM_PSMZ16)
 		{
-			skip = 32; //green fog
+			skip = 32;
 		}
 		if(fi.TME && fi.FBP == 0x01800 && fi.FPSM == PSM_PSMZ32 && fi.TBP0 == 0x0800 && fi.TPSM == PSM_PSMT8H)
 		{
@@ -4890,6 +4807,19 @@ bool GSC_XE3(const GSFrameInfo& fi, int& skip)
 		{
 			skip = 1;
 		}*/
+		else
+		{
+				if(fi.TME)
+				{
+					// depth textures (bully, mgs3s1 intro, Front Mission 5)
+					if( (fi.TPSM == PSM_PSMZ32 || fi.TPSM == PSM_PSMZ24 || fi.TPSM == PSM_PSMZ16 || fi.TPSM == PSM_PSMZ16S) ||
+						// General, often problematic post processing
+						(GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM)) )
+					{
+						skip = 1;
+					}
+				}
+		}
 	}
 	return true;
 }
@@ -5273,101 +5203,6 @@ bool GSC_AnubisZoneofEnders(const GSFrameInfo& fi, int& skip)
 	return true;
 }
 
-bool GSC_PrinceofPersiaWarriorWithin(const GSFrameInfo& fi, int& skip)
-{
-	if(skip == 0)
-	{
-
-		if (fi.TME && (fi.FBP == 0x0000 || fi.FBP == 0x1000 || fi.FBP == 0x1180) && (fi.TBP0 == 0x2000 || fi.TBP0 == 0x2300) && fi.TPSM == PSM_PSMT8H)
-		{
-			skip = 1;
-		}
-		if (g_aggressive)
-		{
-			if (fi.TME && (fi.FBP == 0x0000 || fi.FBP == 0x1000 || fi.FBP == 0x1180) && (fi.TBP0 == 0x2000 || fi.TBP0 == 0x2300) && fi.TPSM == PSM_PSMCT32)
-			{
-				skip = 1; //blur
-			}
-		}
-	}
-
-	return true;
-}
-
-bool GSC_ElementalGerad(const GSFrameInfo& fi, int& skip)
-{
-	if (skip == 0)
-	{
-		if (!fi.TME && fi.FBP == 0x08c0 && fi.FPSM == PSM_PSMCT24)
-		{
-			skip = 1;
-		}
-		if (!fi.TME &&  fi.FBP == 0x1180 && fi.TPSM == 36)
-		{
-			skip = 1;
-		}
-		if (fi.TME && fi.FBP == 0 && fi.TBP0 == 0x23c9 && fi.TPSM == 20)
-		{
-			skip = 1;
-		}
-	}
-
-	return true;
-}
-
-bool GSC_Mercenaries2(const GSFrameInfo& fi, int& skip)
-{
-	if (skip == 0)
-	{
-		if (fi.TME && fi.FBP == 0 && fi.TBP0 == 0x2000 && fi.FBMSK == 0 && fi.TPSM == 19)
-		{
-			skip = 1;
-		}
-		if (!fi.TME && fi.FBP == 0 && fi.TBP0 == 0x3000 && fi.FPSM == 0 && fi.FBMSK == 0 && fi.TZTST == 1)
-		{
-			skip = 1; //ª«Ê^¬ï³z
-		}
-	}
-
-	return true;
-}
-
-bool GSC_EverybodysTennis(const GSFrameInfo& fi, int& skip)
-{
-	if (skip == 0)
-	{
-		if (!fi.TME && (fi.FBP == 0x1180 || fi.FBP == 0x1400) && fi.TBP0 >= 0x2000 && fi.TPSM >= 1)
-		{
-			skip = 1;
-		}
-	}
-	return true;
-}
-
-
-bool GSC_MinnanoGolf3(const GSFrameInfo& fi, int& skip)
-{
-	if (skip == 0)
-	{
-		if ((fi.FBP == 0x0) && fi.TBP0 >= 0x1a00 && (fi.TPSM == 19 || fi.TPSM == 20) && fi.FBMSK == 0x00ffffff)
-		{
-			skip = 1;
-		}
-	}
-	return true;
-}
-
-bool GSC_MinnanoGolf4(const GSFrameInfo& fi, int& skip)
-{
-	if (skip == 0)
-	{
-		if ((fi.FBP == 0x1180 || fi.FBP == 0x1400) && fi.FBMSK == 0x00FFFFFF)
-		{
-			skip = 1;
-		}
-	}
-	return true;
-}
 
 #ifdef ENABLE_DYNAMIC_CRC_HACK
 
@@ -5644,13 +5479,6 @@ bool GSState::IsBadFrame(int& skip, int UserHacks_SkipDraw)
 		map[CRC::SacredBlaze] = GSC_SacredBlaze;
 		map[CRC::FatalFrame3] = GSC_FatalFrame3;
 		map[CRC::AnubisZoneofEnders] = GSC_AnubisZoneofEnders;
-		map[CRC::PrinceofPersiaWarriorWithin] = GSC_PrinceofPersiaWarriorWithin;
-		map[CRC::ElementalGerad] = GSC_ElementalGerad;
-		map[CRC::Mercenaries] = GSC_Mercenaries2;
-		map[CRC::Mercenaries2] = GSC_Mercenaries2;
-		map[CRC::EverybodysTennis] = GSC_EverybodysTennis;
-		map[CRC::MinnanoGolf3] = GSC_MinnanoGolf3;
-		map[CRC::MinnanoGolf4] = GSC_MinnanoGolf4;
 	}
 
 	// TODO: just set gsc in SetGameCRC once
@@ -5682,7 +5510,7 @@ bool GSState::IsBadFrame(int& skip, int UserHacks_SkipDraw)
 	}
 	// Mimic old GSdx behavior (skipping all depth textures with a skip value of 1), to avoid floods of bug reports
 	// that games are broken, when the user hasn't found the skiphack yet. (God of War, sigh...)
-	else if ((skip == 0) && UserHacks_AutoSkipDrawDepth)
+	else if (skip == 0)
 	{
 		if(fi.TME)
 		{
@@ -5691,11 +5519,6 @@ bool GSState::IsBadFrame(int& skip, int UserHacks_SkipDraw)
 				skip = 1;
 			}
 		}
-#ifdef ENABLE_OGL_DEBUG
-	} else if (fi.TME) {
-			if(fi.TPSM == PSM_PSMZ32 || fi.TPSM == PSM_PSMZ24 || fi.TPSM == PSM_PSMZ16 || fi.TPSM == PSM_PSMZ16S)
-				GL_INS("!!! Depth Texture !!!");
-#endif
 	}
 
 	if(skip > 0)
